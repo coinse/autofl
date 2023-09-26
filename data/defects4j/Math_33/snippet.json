@@ -1,0 +1,1627 @@
+[
+    {
+        "name": "Relationship.oppositeRelationship#56",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/Relationship.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.Relationship",
+        "signature": "org.apache.commons.math3.optimization.linear.Relationship.oppositeRelationship()",
+        "snippet": "    public Relationship oppositeRelationship() {\n        switch (this) {\n        case LEQ :\n            return GEQ;\n        case GEQ :\n            return LEQ;\n        default :\n            return EQ;\n        }\n    }\n",
+        "begin_line": 56,
+        "end_line": 65,
+        "comment": "\n     * Get the relationship obtained when multiplying all coefficients by -1.\n     * @return relationship obtained when multiplying all coefficients by -1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getSolution#396",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getSolution()",
+        "snippet": "    protected PointValuePair getSolution() {\n      int negativeVarColumn = columnLabels.indexOf(NEGATIVE_VAR_COLUMN_LABEL);\n      Integer negativeVarBasicRow = negativeVarColumn > 0 ? getBasicRow(negativeVarColumn) : null;\n      double mostNegative = negativeVarBasicRow == null ? 0 : getEntry(negativeVarBasicRow, getRhsOffset());\n\n      Set<Integer> basicRows = new HashSet<Integer>();\n      double[] coefficients = new double[getOriginalNumDecisionVariables()];\n      for (int i = 0; i < coefficients.length; i++) {\n          int colIndex = columnLabels.indexOf(\"x\" + i);\n          if (colIndex < 0) {\n            coefficients[i] = 0;\n            continue;\n          }\n          Integer basicRow = getBasicRow(colIndex);\n          if (basicRow != null && basicRow == 0) {\n              // if the basic row is found to be the objective function row\n              // set the coefficient to 0 -> this case handles unconstrained\n              // variables that are still part of the objective function\n              coefficients[i] = 0;\n          } else if (basicRows.contains(basicRow)) {\n              // if multiple variables can take a given value\n              // then we choose the first and set the rest equal to 0\n              coefficients[i] = 0 - (restrictToNonNegative ? 0 : mostNegative);\n          } else {\n              basicRows.add(basicRow);\n              coefficients[i] =\n                  (basicRow == null ? 0 : getEntry(basicRow, getRhsOffset())) -\n                  (restrictToNonNegative ? 0 : mostNegative);\n          }\n      }\n      return new PointValuePair(coefficients, f.getValue(coefficients));\n    }\n",
+        "begin_line": 396,
+        "end_line": 427,
+        "comment": "\n     * Get the current solution.\n     *\n     * @return current solution\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.normalize#259",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.normalize(org.apache.commons.math3.optimization.linear.LinearConstraint)",
+        "snippet": "    private LinearConstraint normalize(final LinearConstraint constraint) {\n        if (constraint.getValue() < 0) {\n            return new LinearConstraint(constraint.getCoefficients().mapMultiply(-1),\n                                        constraint.getRelationship().oppositeRelationship(),\n                                        -1 * constraint.getValue());\n        }\n        return new LinearConstraint(constraint.getCoefficients(),\n                                    constraint.getRelationship(), constraint.getValue());\n    }\n",
+        "begin_line": 259,
+        "end_line": 267,
+        "comment": "\n     * Get a new equation equivalent to this one with a positive right hand side.\n     * @param constraint reference constraint\n     * @return new equation\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.4472
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.dropPhase1Objective#327",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.dropPhase1Objective()",
+        "snippet": "    protected void dropPhase1Objective() {\n        if (getNumObjectiveFunctions() == 1) {\n            return;\n        }\n\n        List<Integer> columnsToDrop = new ArrayList<Integer>();\n        columnsToDrop.add(0);\n\n        // positive cost non-artificial variables\n        for (int i = getNumObjectiveFunctions(); i < getArtificialVariableOffset(); i++) {\n            final double entry = tableau.getEntry(0, i);\n            if (Precision.compareTo(entry, 0d, maxUlps) > 0) {\n                columnsToDrop.add(i);\n            }\n        }\n\n        // non-basic artificial variables\n        for (int i = 0; i < getNumArtificialVariables(); i++) {\n          int col = i + getArtificialVariableOffset();\n          if (getBasicRow(col) == null) {\n            columnsToDrop.add(col);\n          }\n        }\n\n        double[][] matrix = new double[getHeight() - 1][getWidth() - columnsToDrop.size()];\n        for (int i = 1; i < getHeight(); i++) {\n          int col = 0;\n          for (int j = 0; j < getWidth(); j++) {\n            if (!columnsToDrop.contains(j)) {\n              matrix[i - 1][col++] = tableau.getEntry(i, j);\n            }\n          }\n        }\n\n        for (int i = columnsToDrop.size() - 1; i >= 0; i--) {\n          columnLabels.remove((int) columnsToDrop.get(i));\n        }\n\n        this.tableau = new Array2DRowRealMatrix(matrix);\n        this.numArtificialVariables = 0;\n    }\n",
+        "begin_line": 327,
+        "end_line": 367,
+        "comment": "\n     * Removes the phase 1 objective function, positive cost non-artificial variables,\n     * and the non-basic artificial variables from this tableau.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.4472
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.createTableau#178",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.createTableau(boolean)",
+        "snippet": "    protected RealMatrix createTableau(final boolean maximize) {\n\n        // create a matrix of the correct size\n        int width = numDecisionVariables + numSlackVariables +\n        numArtificialVariables + getNumObjectiveFunctions() + 1; // + 1 is for RHS\n        int height = constraints.size() + getNumObjectiveFunctions();\n        Array2DRowRealMatrix matrix = new Array2DRowRealMatrix(height, width);\n\n        // initialize the objective function rows\n        if (getNumObjectiveFunctions() == 2) {\n            matrix.setEntry(0, 0, -1);\n        }\n        int zIndex = (getNumObjectiveFunctions() == 1) ? 0 : 1;\n        matrix.setEntry(zIndex, zIndex, maximize ? 1 : -1);\n        RealVector objectiveCoefficients =\n            maximize ? f.getCoefficients().mapMultiply(-1) : f.getCoefficients();\n        copyArray(objectiveCoefficients.toArray(), matrix.getDataRef()[zIndex]);\n        matrix.setEntry(zIndex, width - 1,\n            maximize ? f.getConstantTerm() : -1 * f.getConstantTerm());\n\n        if (!restrictToNonNegative) {\n            matrix.setEntry(zIndex, getSlackVariableOffset() - 1,\n                getInvertedCoefficientSum(objectiveCoefficients));\n        }\n\n        // initialize the constraint rows\n        int slackVar = 0;\n        int artificialVar = 0;\n        for (int i = 0; i < constraints.size(); i++) {\n            LinearConstraint constraint = constraints.get(i);\n            int row = getNumObjectiveFunctions() + i;\n\n            // decision variable coefficients\n            copyArray(constraint.getCoefficients().toArray(), matrix.getDataRef()[row]);\n\n            // x-\n            if (!restrictToNonNegative) {\n                matrix.setEntry(row, getSlackVariableOffset() - 1,\n                    getInvertedCoefficientSum(constraint.getCoefficients()));\n            }\n\n            // RHS\n            matrix.setEntry(row, width - 1, constraint.getValue());\n\n            // slack variables\n            if (constraint.getRelationship() == Relationship.LEQ) {\n                matrix.setEntry(row, getSlackVariableOffset() + slackVar++, 1);  // slack\n            } else if (constraint.getRelationship() == Relationship.GEQ) {\n                matrix.setEntry(row, getSlackVariableOffset() + slackVar++, -1); // excess\n            }\n\n            // artificial variables\n            if ((constraint.getRelationship() == Relationship.EQ) ||\n                    (constraint.getRelationship() == Relationship.GEQ)) {\n                matrix.setEntry(0, getArtificialVariableOffset() + artificialVar, 1);\n                matrix.setEntry(row, getArtificialVariableOffset() + artificialVar++, 1);\n                matrix.setRowVector(0, matrix.getRowVector(0).subtract(matrix.getRowVector(row)));\n            }\n        }\n\n        return matrix;\n    }\n",
+        "begin_line": 178,
+        "end_line": 239,
+        "comment": "\n     * Create the tableau by itself.\n     * @param maximize if true, goal is to maximize the objective function\n     * @return created tableau\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Pair.getKey#62",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Pair.java",
+        "class_name": "org.apache.commons.math3.util.Pair",
+        "signature": "org.apache.commons.math3.util.Pair.getKey()",
+        "snippet": "    public K getKey() {\n        return key;\n    }\n",
+        "begin_line": 62,
+        "end_line": 64,
+        "comment": "\n     * Get the key.\n     *\n     * @return the key.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.initializeColumnLabels#153",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.initializeColumnLabels()",
+        "snippet": "    protected void initializeColumnLabels() {\n      if (getNumObjectiveFunctions() == 2) {\n        columnLabels.add(\"W\");\n      }\n      columnLabels.add(\"Z\");\n      for (int i = 0; i < getOriginalNumDecisionVariables(); i++) {\n        columnLabels.add(\"x\" + i);\n      }\n      if (!restrictToNonNegative) {\n        columnLabels.add(NEGATIVE_VAR_COLUMN_LABEL);\n      }\n      for (int i = 0; i < getNumSlackVariables(); i++) {\n        columnLabels.add(\"s\" + i);\n      }\n      for (int i = 0; i < getNumArtificialVariables(); i++) {\n        columnLabels.add(\"a\" + i);\n      }\n      columnLabels.add(\"RHS\");\n    }\n",
+        "begin_line": 153,
+        "end_line": 171,
+        "comment": "\n     * Initialize the labels for the columns.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getInvertedCoefficientSum#297",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getInvertedCoefficientSum(org.apache.commons.math3.linear.RealVector)",
+        "snippet": "    protected static double getInvertedCoefficientSum(final RealVector coefficients) {\n        double sum = 0;\n        for (double coefficient : coefficients.toArray()) {\n            sum -= coefficient;\n        }\n        return sum;\n    }\n",
+        "begin_line": 297,
+        "end_line": 303,
+        "comment": "\n     * Get the -1 times the sum of all coefficients in the given array.\n     * @param coefficients coefficients to sum\n     * @return the -1 times the sum of all coefficients in the given array.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "PointValuePair.getPoint#66",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/PointValuePair.java",
+        "class_name": "org.apache.commons.math3.optimization.PointValuePair",
+        "signature": "org.apache.commons.math3.optimization.PointValuePair.getPoint()",
+        "snippet": "    public double[] getPoint() {\n        final double[] p = getKey();\n        return p == null ? null : p.clone();\n    }\n",
+        "begin_line": 66,
+        "end_line": 69,
+        "comment": "\n     * Gets the point.\n     *\n     * @return a copy of the stored point.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.solvePhase1#165",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.solvePhase1(org.apache.commons.math3.optimization.linear.SimplexTableau)",
+        "snippet": "    protected void solvePhase1(final SimplexTableau tableau)\n        throws MaxCountExceededException, UnboundedSolutionException, NoFeasibleSolutionException {\n\n        // make sure we're in Phase 1\n        if (tableau.getNumArtificialVariables() == 0) {\n            return;\n        }\n\n        while (!tableau.isOptimal()) {\n            doIteration(tableau);\n        }\n\n        // if W is not zero then we have no feasible solution\n        if (!Precision.equals(tableau.getEntry(0, tableau.getRhsOffset()), 0d, epsilon)) {\n            throw new NoFeasibleSolutionException();\n        }\n    }\n",
+        "begin_line": 165,
+        "end_line": 181,
+        "comment": "\n     * Solves Phase 1 of the Simplex method.\n     * @param tableau simple tableau for the problem\n     * @throws MaxCountExceededException if the maximal iteration count has been exceeded\n     * @throws UnboundedSolutionException if the model is found not to have a bounded solution\n     * @throws NoFeasibleSolutionException if there is no feasible solution\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MathUtils.checkNotNull#255",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/MathUtils.java",
+        "class_name": "org.apache.commons.math3.util.MathUtils",
+        "signature": "org.apache.commons.math3.util.MathUtils.checkNotNull(java.lang.Object)",
+        "snippet": "    public static void checkNotNull(Object o)\n        throws NullArgumentException {\n        if (o == null) {\n            throw new NullArgumentException();\n        }\n    }\n",
+        "begin_line": 255,
+        "end_line": 260,
+        "comment": "\n     * Checks that an object is not null.\n     *\n     * @param o Object to be checked.\n     * @throws NullArgumentException if {@code o} is {@code null}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.Array2DRowRealMatrix#73",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.Array2DRowRealMatrix(double[][])",
+        "snippet": "    public Array2DRowRealMatrix(final double[][] d)\n        throws DimensionMismatchException, NoDataException, NullArgumentException {\n        copyIn(d);\n    }\n",
+        "begin_line": 73,
+        "end_line": 76,
+        "comment": "\n     * Create a new {@code RealMatrix} using the input array as the underlying\n     * data array.\n     * <p>The input array is copied, not referenced. This constructor has\n     * the same effect as calling {@link #Array2DRowRealMatrix(double[][], boolean)}\n     * with the second argument set to {@code true}.</p>\n     *\n     * @param d Data for the new matrix.\n     * @throws DimensionMismatchException if {@code d} is not rectangular.\n     * @throws NoDataException if {@code d} row or colum dimension is zero.\n     * @throws NullArgumentException if {@code d} is {@code null}.\n     * @see #Array2DRowRealMatrix(double[][], boolean)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.setSubMatrix#259",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.setSubMatrix(double[][], int, int)",
+        "snippet": "    @Override\n    public void setSubMatrix(final double[][] subMatrix,\n                             final int row, final int column) {\n        if (data == null) {\n            if (row > 0) {\n                throw new MathIllegalStateException(LocalizedFormats.FIRST_ROWS_NOT_INITIALIZED_YET, row);\n            }\n            if (column > 0) {\n                throw new MathIllegalStateException(LocalizedFormats.FIRST_COLUMNS_NOT_INITIALIZED_YET, column);\n            }\n            MathUtils.checkNotNull(subMatrix);\n            final int nRows = subMatrix.length;\n            if (nRows == 0) {\n                throw new NoDataException(LocalizedFormats.AT_LEAST_ONE_ROW);\n            }\n\n            final int nCols = subMatrix[0].length;\n            if (nCols == 0) {\n                throw new NoDataException(LocalizedFormats.AT_LEAST_ONE_COLUMN);\n            }\n            data = new double[subMatrix.length][nCols];\n            for (int i = 0; i < data.length; ++i) {\n                if (subMatrix[i].length != nCols) {\n                    throw new DimensionMismatchException(subMatrix[i].length, nCols);\n                }\n                System.arraycopy(subMatrix[i], 0, data[i + row], column, nCols);\n            }\n        } else {\n            super.setSubMatrix(subMatrix, row, column);\n        }\n\n    }\n",
+        "begin_line": 259,
+        "end_line": 290,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.AbstractRealMatrix": " {@inheritDoc} ",
+            "java.io.Serializable": null,
+            "org.apache.commons.math3.linear.RealLinearOperator": null,
+            "org.apache.commons.math3.linear.RealMatrix": "\n    * Replace the submatrix starting at <code>row, column</code> using data in\n    * the input <code>subMatrix</code> array. Indexes are 0-based.\n    * <p>\n    * Example:<br>\n    * Starting with <pre>\n    * 1  2  3  4\n    * 5  6  7  8\n    * 9  0  1  2\n    * </pre>\n    * and <code>subMatrix = {{3, 4} {5,6}}</code>, invoking\n    * <code>setSubMatrix(subMatrix,1,1))</code> will result in <pre>\n    * 1  2  3  4\n    * 5  3  4  8\n    * 9  5  6  2\n    * </pre></p>\n    *\n    * @param subMatrix  array containing the submatrix replacement data\n    * @param row  row coordinate of the top, left element to be replaced\n    * @param column  column coordinate of the top, left element to be replaced\n    * @throws ZeroException if {@code subMatrix} does not contain at least one column.\n    * @throws OutOfRangeException if {@code subMatrix} does not fit into\n    * this matrix from element in {@code (row, column)}.\n    * @throws DimensionMismatchException if {@code subMatrix} is not rectangular.\n    * (not all rows have the same length) or empty.\n    * @throws NullArgumentException if {@code subMatrix} is {@code null}.\n    * @since 2.0\n    "
+        },
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.copyIn#524",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.copyIn(double[][])",
+        "snippet": "    private void copyIn(final double[][] in)\n        throws DimensionMismatchException, NoDataException, NullArgumentException {\n        setSubMatrix(in, 0, 0);\n    }\n",
+        "begin_line": 524,
+        "end_line": 527,
+        "comment": "\n     * Replace data with a fresh copy of the input array.\n     *\n     * @param in Data to copy.\n     * @throws NoDataException if the input array is empty.\n     * @throws DimensionMismatchException if the input array is not rectangular.\n     * @throws NullArgumentException if\n     * the input array is {@code null}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.AbstractRealMatrix#44",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math3.linear.AbstractRealMatrix.AbstractRealMatrix()",
+        "snippet": "    protected AbstractRealMatrix() {}\n",
+        "begin_line": 44,
+        "end_line": 44,
+        "comment": "\n     * Creates a matrix with no data\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2294
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Precision.compareTo#114",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Precision.java",
+        "class_name": "org.apache.commons.math3.util.Precision",
+        "signature": "org.apache.commons.math3.util.Precision.compareTo(double, double, int)",
+        "snippet": "    public static int compareTo(final double x, final double y, final int maxUlps) {\n        if (equals(x, y, maxUlps)) {\n            return 0;\n        } else if (x < y) {\n            return -1;\n        }\n        return 1;\n    }\n",
+        "begin_line": 114,
+        "end_line": 121,
+        "comment": "\n     * Compares two numbers given some amount of allowed error.\n     * Two float numbers are considered equal if there are {@code (maxUlps - 1)}\n     * (or fewer) floating point numbers between them, i.e. two adjacent floating\n     * point numbers are considered equal.\n     * Adapted from <a\n     * href=\"http://www.cygnus-software.com/papers/comparingfloats/comparingfloats.htm\">\n     * Bruce Dawson</a>\n     *\n     * @param x first value\n     * @param y second value\n     * @param maxUlps {@code (maxUlps - 1)} is the number of floating point\n     * values between {@code x} and {@code y}.\n     * @return <ul><li>0 if  {@link #equals(double, double, int) equals(x, y, maxUlps)}</li>\n     *       <li>&lt; 0 if !{@link #equals(double, double, int) equals(x, y, maxUlps)} &amp;&amp; x &lt; y</li>\n     *       <li>> 0 if !{@link #equals(double, double, int) equals(x, y, maxUlps)} &amp;&amp; x > y</li></ul>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Pair.Pair#42",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Pair.java",
+        "class_name": "org.apache.commons.math3.util.Pair",
+        "signature": "org.apache.commons.math3.util.Pair.Pair(K, V)",
+        "snippet": "    public Pair(K k, V v) {\n        key = k;\n        value = v;\n    }\n",
+        "begin_line": 42,
+        "end_line": 45,
+        "comment": "\n     * Create an entry representing a mapping from the specified key to the\n     * specified value.\n     *\n     * @param k Key.\n     * @param v Value.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getBasicRow#310",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getBasicRow(int)",
+        "snippet": "    protected Integer getBasicRow(final int col) {\n        Integer row = null;\n        for (int i = 0; i < getHeight(); i++) {\n            final double entry = getEntry(i, col);\n            if (Precision.equals(entry, 1d, maxUlps) && (row == null)) {\n                row = i;\n            } else if (!Precision.equals(entry, 0d, maxUlps)) {\n                return null;\n            }\n        }\n        return row;\n    }\n",
+        "begin_line": 310,
+        "end_line": 321,
+        "comment": "\n     * Checks whether the given column is basic.\n     * @param col index of the column to check\n     * @return the row that the variable is basic in.  null if the column is not basic\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.doOptimize#184",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.doOptimize()",
+        "snippet": "    @Override\n    public PointValuePair doOptimize()\n        throws MaxCountExceededException, UnboundedSolutionException, NoFeasibleSolutionException {\n        final SimplexTableau tableau =\n            new SimplexTableau(getFunction(),\n                               getConstraints(),\n                               getGoalType(),\n                               restrictToNonNegative(),\n                               epsilon,\n                               maxUlps);\n\n        solvePhase1(tableau);\n        tableau.dropPhase1Objective();\n\n        while (!tableau.isOptimal()) {\n            doIteration(tableau);\n        }\n        return tableau.getSolution();\n    }\n",
+        "begin_line": 184,
+        "end_line": 202,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer": " Perform the bulk of optimization algorithm.\n     * @return the point/value pair giving the optimal value for objective function\n     * @exception MathIllegalStateException if no solution fulfilling the constraints\n     * can be found in the allowed number of iterations\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearObjectiveFunction.getValue#91",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearObjectiveFunction.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction.getValue(double[])",
+        "snippet": "    public double getValue(final double[] point) {\n        return coefficients.dotProduct(new ArrayRealVector(point, false)) + constantTerm;\n    }\n",
+        "begin_line": 91,
+        "end_line": 93,
+        "comment": "\n     * Compute the value of the linear equation at the current point\n     * @param point point at which linear equation must be evaluated\n     * @return value of the linear equation at the current point\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "PointValuePair.PointValuePair#39",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/PointValuePair.java",
+        "class_name": "org.apache.commons.math3.optimization.PointValuePair",
+        "signature": "org.apache.commons.math3.optimization.PointValuePair.PointValuePair(double[], double)",
+        "snippet": "    public PointValuePair(final double[] point,\n                          final double value) {\n        this(point, value, true);\n    }\n",
+        "begin_line": 39,
+        "end_line": 42,
+        "comment": "\n     * Builds a point/objective function value pair.\n     *\n     * @param point Point coordinates. This instance will store\n     * a copy of the array, not the array passed as argument.\n     * @param value Value of the objective function at the point.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "PointValuePair.PointValuePair#52",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/PointValuePair.java",
+        "class_name": "org.apache.commons.math3.optimization.PointValuePair",
+        "signature": "org.apache.commons.math3.optimization.PointValuePair.PointValuePair(double[], double, boolean)",
+        "snippet": "    public PointValuePair(final double[] point,\n                          final double value,\n                          final boolean copyArray) {\n        super(copyArray ? ((point == null) ? null :\n                           point.clone()) :\n              point,\n              value);\n    }\n",
+        "begin_line": 52,
+        "end_line": 59,
+        "comment": "\n     * Builds a point/objective function value pair.\n     *\n     * @param point Point coordinates.\n     * @param value Value of the objective function at the point.\n     * @param copyArray if {@code true}, the input array will be copied,\n     * otherwise it will be referenced.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.dotProduct#446",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.dotProduct(org.apache.commons.math3.linear.RealVector)",
+        "snippet": "    @Override\n    public double dotProduct(RealVector v) {\n        if (v instanceof ArrayRealVector) {\n            final double[] vData = ((ArrayRealVector) v).data;\n            checkVectorDimensions(vData.length);\n            double dot = 0;\n            for (int i = 0; i < data.length; i++) {\n                dot += data[i] * vData[i];\n            }\n            return dot;\n        } else {\n            checkVectorDimensions(v);\n            double dot = 0;\n            Iterator<Entry> it = v.sparseIterator();\n            Entry e;\n            while(it.hasNext() && (e = it.next()) != null) {\n                dot += data[e.getIndex()] * e.getValue();\n            }\n            return dot;\n        }\n    }\n",
+        "begin_line": 446,
+        "end_line": 466,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Construct a new vector by appending a vector to this vector.\n     *\n     * @param v vector to append to this one.\n     * @return a new vector.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Precision.compareTo#88",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Precision.java",
+        "class_name": "org.apache.commons.math3.util.Precision",
+        "signature": "org.apache.commons.math3.util.Precision.compareTo(double, double, double)",
+        "snippet": "    public static int compareTo(double x, double y, double eps) {\n        if (equals(x, y, eps)) {\n            return 0;\n        } else if (x < y) {\n            return -1;\n        }\n        return 1;\n    }\n",
+        "begin_line": 88,
+        "end_line": 95,
+        "comment": "\n     * Compares two numbers given some amount of allowed error.\n     *\n     * @param x the first number\n     * @param y the second number\n     * @param eps the amount of error to allow when checking for equality\n     * @return <ul><li>0 if  {@link #equals(double, double, double) equals(x, y, eps)}</li>\n     *       <li>&lt; 0 if !{@link #equals(double, double, double) equals(x, y, eps)} &amp;&amp; x &lt; y</li>\n     *       <li>> 0 if !{@link #equals(double, double, double) equals(x, y, eps)} &amp;&amp; x > y</li></ul>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Precision.equals#300",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Precision.java",
+        "class_name": "org.apache.commons.math3.util.Precision",
+        "signature": "org.apache.commons.math3.util.Precision.equals(double, double, int)",
+        "snippet": "    public static boolean equals(double x, double y, int maxUlps) {\n        long xInt = Double.doubleToLongBits(x);\n        long yInt = Double.doubleToLongBits(y);\n\n        // Make lexicographically ordered as a two's-complement integer.\n        if (xInt < 0) {\n            xInt = SGN_MASK - xInt;\n        }\n        if (yInt < 0) {\n            yInt = SGN_MASK - yInt;\n        }\n\n        final boolean isEqual = FastMath.abs(xInt - yInt) <= maxUlps;\n\n        return isEqual && !Double.isNaN(x) && !Double.isNaN(y);\n    }\n",
+        "begin_line": 300,
+        "end_line": 315,
+        "comment": "\n     * Returns true if both arguments are equal or within the range of allowed\n     * error (inclusive).\n     * Two float numbers are considered equal if there are {@code (maxUlps - 1)}\n     * (or fewer) floating point numbers between them, i.e. two adjacent floating\n     * point numbers are considered equal.\n     * Adapted from <a\n     * href=\"http://www.cygnus-software.com/papers/comparingfloats/comparingfloats.htm\">\n     * Bruce Dawson</a>\n     *\n     * @param x first value\n     * @param y second value\n     * @param maxUlps {@code (maxUlps - 1)} is the number of floating point\n     * values between {@code x} and {@code y}.\n     * @return {@code true} if there are fewer than {@code maxUlps} floating\n     * point values between {@code x} and {@code y}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.isOptimal#381",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.isOptimal()",
+        "snippet": "    boolean isOptimal() {\n        for (int i = getNumObjectiveFunctions(); i < getWidth() - 1; i++) {\n            final double entry = tableau.getEntry(0, i);\n            if (Precision.compareTo(entry, 0d, epsilon) < 0) {\n                return false;\n            }\n        }\n        return true;\n    }\n",
+        "begin_line": 381,
+        "end_line": 389,
+        "comment": "\n     * Returns whether the problem is at an optimal state.\n     * @return whether the model has been solved\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.divideRow#438",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.divideRow(int, double)",
+        "snippet": "    protected void divideRow(final int dividendRow, final double divisor) {\n        for (int j = 0; j < getWidth(); j++) {\n            tableau.setEntry(dividendRow, j, tableau.getEntry(dividendRow, j) / divisor);\n        }\n    }\n",
+        "begin_line": 438,
+        "end_line": 442,
+        "comment": "\n     * Subtracts a multiple of one row from another.\n     * <p>\n     * After application of this operation, the following will hold:\n     *   minuendRow = minuendRow - multiple * subtrahendRow\n     * </p>\n     * @param dividendRow index of the row\n     * @param divisor value of the divisor\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.subtractRow#454",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.subtractRow(int, int, double)",
+        "snippet": "    protected void subtractRow(final int minuendRow, final int subtrahendRow,\n                               final double multiple) {\n        tableau.setRowVector(minuendRow, tableau.getRowVector(minuendRow)\n            .subtract(tableau.getRowVector(subtrahendRow).mapMultiply(multiple)));\n    }\n",
+        "begin_line": 454,
+        "end_line": 458,
+        "comment": "\n     * Subtracts a multiple of one row from another.\n     * <p>\n     * After application of this operation, the following will hold:\n     *   minuendRow = minuendRow - multiple * subtrahendRow\n     * </p>\n     * @param minuendRow row index\n     * @param subtrahendRow row index\n     * @param multiple multiplication factor\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.getPivotColumn#69",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.getPivotColumn(org.apache.commons.math3.optimization.linear.SimplexTableau)",
+        "snippet": "    private Integer getPivotColumn(SimplexTableau tableau) {\n        double minValue = 0;\n        Integer minPos = null;\n        for (int i = tableau.getNumObjectiveFunctions(); i < tableau.getWidth() - 1; i++) {\n            final double entry = tableau.getEntry(0, i);\n            if (Precision.compareTo(entry, minValue, maxUlps) < 0) {\n                minValue = entry;\n                minPos = i;\n            }\n        }\n        return minPos;\n    }\n",
+        "begin_line": 69,
+        "end_line": 80,
+        "comment": "\n     * Returns the column with the most negative coefficient in the objective function row.\n     * @param tableau simple tableau for the problem\n     * @return column with the most negative coefficient\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.getPivotRow#88",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.getPivotRow(org.apache.commons.math3.optimization.linear.SimplexTableau, int)",
+        "snippet": "    private Integer getPivotRow(SimplexTableau tableau, final int col) {\n        // create a list of all the rows that tie for the lowest score in the minimum ratio test\n        List<Integer> minRatioPositions = new ArrayList<Integer>();\n        double minRatio = Double.MAX_VALUE;\n        for (int i = tableau.getNumObjectiveFunctions(); i < tableau.getHeight(); i++) {\n            final double rhs = tableau.getEntry(i, tableau.getWidth() - 1);\n            final double entry = tableau.getEntry(i, col);\n\n            if (Precision.compareTo(entry, 0d, maxUlps) > 0) {\n                final double ratio = rhs / entry;\n                final int cmp = Precision.compareTo(ratio, minRatio, maxUlps);\n                if (cmp == 0) {\n                    minRatioPositions.add(i);\n                } else if (cmp < 0) {\n                    minRatio = ratio;\n                    minRatioPositions = new ArrayList<Integer>();\n                    minRatioPositions.add(i);\n                }\n            }\n        }\n\n        if (minRatioPositions.size() == 0) {\n          return null;\n        } else if (minRatioPositions.size() > 1) {\n          // there's a degeneracy as indicated by a tie in the minimum ratio test\n          // check if there's an artificial variable that can be forced out of the basis\n          for (Integer row : minRatioPositions) {\n            for (int i = 0; i < tableau.getNumArtificialVariables(); i++) {\n              int column = i + tableau.getArtificialVariableOffset();\n              final double entry = tableau.getEntry(row, column);\n              if (Precision.equals(entry, 1d, maxUlps) &&\n                  row.equals(tableau.getBasicRow(column))) {\n                return row;\n              }\n            }\n          }\n        }\n        return minRatioPositions.get(0);\n    }\n",
+        "begin_line": 88,
+        "end_line": 126,
+        "comment": "\n     * Returns the row with the minimum ratio as given by the minimum ratio test (MRT).\n     * @param tableau simple tableau for the problem\n     * @param col the column to test the ratio of.  See {@link #getPivotColumn(SimplexTableau)}\n     * @return row with the minimum ratio\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.doIteration#134",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.doIteration(org.apache.commons.math3.optimization.linear.SimplexTableau)",
+        "snippet": "    protected void doIteration(final SimplexTableau tableau)\n        throws MaxCountExceededException, UnboundedSolutionException {\n\n        incrementIterationsCounter();\n\n        Integer pivotCol = getPivotColumn(tableau);\n        Integer pivotRow = getPivotRow(tableau, pivotCol);\n        if (pivotRow == null) {\n            throw new UnboundedSolutionException();\n        }\n\n        // set the pivot element to 1\n        double pivotVal = tableau.getEntry(pivotRow, pivotCol);\n        tableau.divideRow(pivotRow, pivotVal);\n\n        // set the rest of the pivot column to 0\n        for (int i = 0; i < tableau.getHeight(); i++) {\n            if (i != pivotRow) {\n                double multiplier = tableau.getEntry(i, pivotCol);\n                tableau.subtractRow(i, pivotRow, multiplier);\n            }\n        }\n    }\n",
+        "begin_line": 134,
+        "end_line": 156,
+        "comment": "\n     * Runs one iteration of the Simplex method on the given model.\n     * @param tableau simple tableau for the problem\n     * @throws MaxCountExceededException if the maximal iteration count has been exceeded\n     * @throws UnboundedSolutionException if the model is found not to have a bounded solution\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.incrementIterationsCounter#125",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.incrementIterationsCounter()",
+        "snippet": "    protected void incrementIterationsCounter()\n        throws MaxCountExceededException {\n        if (++iterations > maxIterations) {\n            throw new MaxCountExceededException(maxIterations);\n        }\n    }\n",
+        "begin_line": 125,
+        "end_line": 130,
+        "comment": " Increment the iterations counter by 1.\n     * @exception MaxCountExceededException if the maximal number\n     * of iterations is exceeded\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getArtificialVariableOffset#507",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getArtificialVariableOffset()",
+        "snippet": "    protected final int getArtificialVariableOffset() {\n        return getNumObjectiveFunctions() + numDecisionVariables + numSlackVariables;\n    }\n",
+        "begin_line": 507,
+        "end_line": 509,
+        "comment": "\n     * Get the offset of the first artificial variable.\n     * @return offset of the first artificial variable\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getRhsOffset#515",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getRhsOffset()",
+        "snippet": "    protected final int getRhsOffset() {\n        return getWidth() - 1;\n    }\n",
+        "begin_line": 515,
+        "end_line": 517,
+        "comment": "\n     * Get the offset of the right hand side.\n     * @return offset of the right hand side\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Precision.equals#264",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/Precision.java",
+        "class_name": "org.apache.commons.math3.util.Precision",
+        "signature": "org.apache.commons.math3.util.Precision.equals(double, double, double)",
+        "snippet": "    public static boolean equals(double x, double y, double eps) {\n        return equals(x, y, 1) || FastMath.abs(y - x) <= eps;\n    }\n",
+        "begin_line": 264,
+        "end_line": 266,
+        "comment": "\n     * Returns {@code true} if there is no double value strictly between the\n     * arguments or the difference between them is within the range of allowed\n     * error (inclusive).\n     *\n     * @param x First value.\n     * @param y Second value.\n     * @param eps Amount of allowed absolute error.\n     * @return {@code true} if the values are two adjacent floating point\n     * numbers or they are within range of each other.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.abs#3019",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.abs(double)",
+        "snippet": "    public static double abs(double x) {\n        return (x < 0.0) ? -x : (x == 0.0) ? 0.0 : x; // -0.0 => +0.0\n    }\n",
+        "begin_line": 3019,
+        "end_line": 3021,
+        "comment": "\n     * Absolute value.\n     * @param x number from which absolute value is requested\n     * @return abs(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getHeight#472",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getHeight()",
+        "snippet": "    protected final int getHeight() {\n        return tableau.getRowDimension();\n    }\n",
+        "begin_line": 472,
+        "end_line": 474,
+        "comment": "\n     * Get the height of the tableau.\n     * @return height of the tableau\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.SimplexSolver#50",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.SimplexSolver()",
+        "snippet": "    public SimplexSolver() {\n        this(DEFAULT_EPSILON, DEFAULT_ULPS);\n    }\n",
+        "begin_line": 50,
+        "end_line": 52,
+        "comment": "\n     * Build a simplex solver with default settings.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexSolver.SimplexSolver#59",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexSolver.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexSolver",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexSolver.SimplexSolver(double, int)",
+        "snippet": "    public SimplexSolver(final double epsilon, final int maxUlps) {\n        this.epsilon = epsilon;\n        this.maxUlps = maxUlps;\n    }\n",
+        "begin_line": 59,
+        "end_line": 62,
+        "comment": "\n     * Build a simplex solver with a specified accepted amount of error\n     * @param epsilon the amount of error to accept for algorithm convergence\n     * @param maxUlps amount of error to accept in floating point comparisons\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.AbstractLinearOptimizer#74",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.AbstractLinearOptimizer()",
+        "snippet": "    protected AbstractLinearOptimizer() {\n        setMaxIterations(DEFAULT_MAX_ITERATIONS);\n    }\n",
+        "begin_line": 74,
+        "end_line": 76,
+        "comment": " Simple constructor with default settings.\n     * <p>The maximal number of evaluation is set to its default value.</p>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.restrictToNonNegative#81",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.restrictToNonNegative()",
+        "snippet": "    protected boolean restrictToNonNegative() {\n        return nonNegative;\n    }\n",
+        "begin_line": 81,
+        "end_line": 83,
+        "comment": "\n     * @return {@code true} if the variables are restricted to non-negative values.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.getGoalType#88",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.getGoalType()",
+        "snippet": "    protected GoalType getGoalType() {\n        return goal;\n    }\n",
+        "begin_line": 88,
+        "end_line": 90,
+        "comment": "\n     * @return the optimization type.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.getFunction#95",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.getFunction()",
+        "snippet": "    protected LinearObjectiveFunction getFunction() {\n        return function;\n    }\n",
+        "begin_line": 95,
+        "end_line": 97,
+        "comment": "\n     * @return the optimization type.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.getConstraints#102",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.getConstraints()",
+        "snippet": "    protected Collection<LinearConstraint> getConstraints() {\n        return Collections.unmodifiableCollection(linearConstraints);\n    }\n",
+        "begin_line": 102,
+        "end_line": 104,
+        "comment": "\n     * @return the optimization type.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.setMaxIterations#107",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.setMaxIterations(int)",
+        "snippet": "    public void setMaxIterations(int maxIterations) {\n        this.maxIterations = maxIterations;\n    }\n",
+        "begin_line": 107,
+        "end_line": 109,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.optimization.linear.LinearOptimizer": " Set the maximal number of iterations of the algorithm.\n     * @param maxIterations maximal number of function calls\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractLinearOptimizer.optimize#133",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/AbstractLinearOptimizer.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer",
+        "signature": "org.apache.commons.math3.optimization.linear.AbstractLinearOptimizer.optimize(org.apache.commons.math3.optimization.linear.LinearObjectiveFunction, java.util.Collection<org.apache.commons.math3.optimization.linear.LinearConstraint>, org.apache.commons.math3.optimization.GoalType, boolean)",
+        "snippet": "    public PointValuePair optimize(final LinearObjectiveFunction f,\n                                       final Collection<LinearConstraint> constraints,\n                                       final GoalType goalType, final boolean restrictToNonNegative)\n         throws MathIllegalStateException {\n\n        // store linear problem characteristics\n        this.function          = f;\n        this.linearConstraints = constraints;\n        this.goal              = goalType;\n        this.nonNegative       = restrictToNonNegative;\n\n        iterations  = 0;\n\n        // solve the problem\n        return doOptimize();\n\n    }\n",
+        "begin_line": 133,
+        "end_line": 149,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.optimization.linear.LinearOptimizer": " Optimizes an objective function.\n     * @param f linear objective function\n     * @param constraints linear constraints\n     * @param goalType type of optimization goal: either {@link GoalType#MAXIMIZE}\n     * or {@link GoalType#MINIMIZE}\n     * @param restrictToNonNegative whether to restrict the variables to non-negative values\n     * @return point/value pair giving the optimal value for objective function\n     * @exception MathIllegalStateException if no solution fulfilling the constraints\n     * can be found in the allowed number of iterations\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2041
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.abs#3001",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.abs(long)",
+        "snippet": "    public static long abs(final long x) {\n        return (x < 0l) ? -x : x;\n    }\n",
+        "begin_line": 3001,
+        "end_line": 3003,
+        "comment": "\n     * Absolute value.\n     * @param x number from which absolute value is requested\n     * @return abs(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getWidth#464",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getWidth()",
+        "snippet": "    protected final int getWidth() {\n        return tableau.getColumnDimension();\n    }\n",
+        "begin_line": 464,
+        "end_line": 466,
+        "comment": "\n     * Get the width of the tableau.\n     * @return width of the tableau\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getEntry#481",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getEntry(int, int)",
+        "snippet": "    protected final double getEntry(final int row, final int column) {\n        return tableau.getEntry(row, column);\n    }\n",
+        "begin_line": 481,
+        "end_line": 483,
+        "comment": " Get an entry of the tableau.\n     * @param row row index\n     * @param column column index\n     * @return entry at (row, column)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getSlackVariableOffset#499",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getSlackVariableOffset()",
+        "snippet": "    protected final int getSlackVariableOffset() {\n        return getNumObjectiveFunctions() + numDecisionVariables;\n    }\n",
+        "begin_line": 499,
+        "end_line": 501,
+        "comment": "\n     * Get the offset of the first slack variable.\n     * @return offset of the first slack variable\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#63",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.ArrayRealVector(int)",
+        "snippet": "    public ArrayRealVector(int size) {\n        data = new double[size];\n    }\n",
+        "begin_line": 63,
+        "end_line": 65,
+        "comment": "\n     * Construct a vector of zeroes.\n     *\n     * @param size Size of the vector.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.subtract#314",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.subtract(org.apache.commons.math3.linear.RealVector)",
+        "snippet": "    @Override\n    public ArrayRealVector subtract(RealVector v) {\n        if (v instanceof ArrayRealVector) {\n            final double[] vData = ((ArrayRealVector) v).data;\n            final int dim = vData.length;\n            checkVectorDimensions(dim);\n            ArrayRealVector result = new ArrayRealVector(dim);\n            double[] resultData = result.data;\n            for (int i = 0; i < dim; i++) {\n                resultData[i] = data[i] - vData[i];\n            }\n            return result;\n        } else {\n            checkVectorDimensions(v);\n            double[] out = data.clone();\n            Iterator<Entry> it = v.sparseIterator();\n            Entry e;\n            while(it.hasNext() && (e = it.next()) != null) {\n                out[e.getIndex()] -= e.getValue();\n            }\n            return new ArrayRealVector(out, false);\n        }\n    }\n",
+        "begin_line": 314,
+        "end_line": 336,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Construct a new vector by appending a vector to this vector.\n     *\n     * @param v vector to append to this one.\n     * @return a new vector.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.getEntry#621",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.getEntry(int)",
+        "snippet": "    @Override\n    public double getEntry(int index) {\n        return data[index];\n    }\n",
+        "begin_line": 621,
+        "end_line": 624,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Return the entry at the specified index.\n     *\n     * @param index Index location of entry to be fetched.\n     * @return the vector entry at {@code index}.\n     * @throws org.apache.commons.math3.exception.OutOfRangeException\n     * if the index is not valid.\n     * @see #setEntry(int, double)\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.getRowVector#477",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math3.linear.AbstractRealMatrix.getRowVector(int)",
+        "snippet": "    public RealVector getRowVector(final int row) {\n        return new ArrayRealVector(getRow(row), false);\n    }\n",
+        "begin_line": 477,
+        "end_line": 479,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealLinearOperator": null,
+            "org.apache.commons.math3.linear.RealMatrix": "\n    * Returns the entries in row number <code>row</code>\n    * as a vector.  Row indices start at 0.\n    *\n    * @param row Row to be fetched.\n    * @return a row vector.\n    * @throws org.apache.commons.math3.exception.OutOfRangeException if\n    * the specified row index is invalid.\n    "
+        },
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.setRowVector#482",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math3.linear.AbstractRealMatrix.setRowVector(int, org.apache.commons.math3.linear.RealVector)",
+        "snippet": "    public void setRowVector(final int row, final RealVector vector) {\n        MatrixUtils.checkRowIndex(this, row);\n        final int nCols = getColumnDimension();\n        if (vector.getDimension() != nCols) {\n            throw new MatrixDimensionMismatchException(1, vector.getDimension(),\n                                                       1, nCols);\n        }\n        for (int i = 0; i < nCols; ++i) {\n            setEntry(row, i, vector.getEntry(i));\n        }\n    }\n",
+        "begin_line": 482,
+        "end_line": 492,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealLinearOperator": "\n     * Returns the result of multiplying {@code this} by the vector {@code x}.\n     *\n     * @param x the vector to operate on\n     * @return the product of {@code this} instance with {@code x}\n     * @throws org.apache.commons.math3.exception.DimensionMismatchException\n     * if the column dimension does not match the size of {@code x}\n     ",
+            "org.apache.commons.math3.linear.RealMatrix": "\n    * Set the entries at the given row index.\n    * as a vector.  Row indices start at 0.\n    *\n    * @param row Row to be set.\n    * @param vector row vector (must have the same number of columns\n    * as the instance).\n    * @throws org.apache.commons.math3.exception.OutOfRangeException if\n    * the specified row index is invalid.\n    * @throws MatrixDimensionMismatchException\n    * if the vector dimension does not match one instance row.\n    "
+        },
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.getRow#513",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math3.linear.AbstractRealMatrix.getRow(int)",
+        "snippet": "    public double[] getRow(final int row) {\n        MatrixUtils.checkRowIndex(this, row);\n        final int nCols = getColumnDimension();\n        final double[] out = new double[nCols];\n        for (int i = 0; i < nCols; ++i) {\n            out[i] = getEntry(row, i);\n        }\n\n        return out;\n    }\n",
+        "begin_line": 513,
+        "end_line": 522,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealLinearOperator": null,
+            "org.apache.commons.math3.linear.RealMatrix": "\n     * Get the entries at the given row index.\n     * Row indices start at 0.\n     *\n     * @param row Row to be fetched.\n     * @return the array of entries in the row.\n     * @throws org.apache.commons.math3.exception.OutOfRangeException if the\n     * specified row index is not valid.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#102",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.ArrayRealVector(double[], boolean)",
+        "snippet": "    public ArrayRealVector(double[] d, boolean copyArray) {\n        if (d == null) {\n            throw new NullArgumentException();\n        }\n        data = copyArray ? d.clone() :  d;\n    }\n",
+        "begin_line": 102,
+        "end_line": 107,
+        "comment": "\n     * Create a new ArrayRealVector using the input array as the underlying\n     * data array.\n     * If an array is built specially in order to be embedded in a\n     * ArrayRealVector and not used directly, the {@code copyArray} may be\n     * set to {@code false}. This will prevent the copying and improve\n     * performance as no new array will be built and no data will be copied.\n     *\n     * @param d Data for the new vector.\n     * @param copyArray if {@code true}, the input array will be copied,\n     * otherwise it will be referenced.\n     * @throws NullArgumentException if {@code d} is {@code null}.\n     * @see #ArrayRealVector(double[])\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1924
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.checkVectorDimensions#761",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.checkVectorDimensions(int)",
+        "snippet": "    @Override\n    protected void checkVectorDimensions(int n) {\n        if (data.length != n) {\n            throw new DimensionMismatchException(data.length, n);\n        }\n    }\n",
+        "begin_line": 761,
+        "end_line": 766,
+        "comment": "\n     * Check if instance dimension is equal to some expected value.\n     *\n     * @param n Expected dimension.\n     * @throws DimensionMismatchException if the dimension is\n     * inconsistent with vector size.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1924
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getEntry#293",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.getEntry(int, int)",
+        "snippet": "    @Override\n    public double getEntry(final int row, final int column) {\n        MatrixUtils.checkMatrixIndex(this, row, column);\n        return data[row][column];\n    }\n",
+        "begin_line": 293,
+        "end_line": 297,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.AbstractRealMatrix": " {@inheritDoc} ",
+            "java.io.Serializable": null,
+            "org.apache.commons.math3.linear.RealLinearOperator": null,
+            "org.apache.commons.math3.linear.RealMatrix": "\n     * Get the entry in the specified row and column.\n     * Row and column indices start at 0.\n     *\n     * @param row Row location of entry to be fetched.\n     * @param column Column location of entry to be fetched.\n     * @return the matrix entry at {@code (row, column)}.\n     * @throws org.apache.commons.math3.exception.OutOfRangeException if the\n     * row or column index is not valid.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1924
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "CompositeFormat.getDefaultNumberFormat#53",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/CompositeFormat.java",
+        "class_name": "org.apache.commons.math3.util.CompositeFormat",
+        "signature": "org.apache.commons.math3.util.CompositeFormat.getDefaultNumberFormat(java.util.Locale)",
+        "snippet": "    public static NumberFormat getDefaultNumberFormat(final Locale locale) {\n        final NumberFormat nf = NumberFormat.getInstance(locale);\n        nf.setMaximumFractionDigits(2);\n        return nf;\n    }\n",
+        "begin_line": 53,
+        "end_line": 57,
+        "comment": "\n     * Create a default number format.  The default number format is based on\n     * {@link NumberFormat#getInstance(java.util.Locale)} with the only\n     * customizing that the maximum number of fraction digits is set to 2.\n     * @param locale the specific locale used by the format.\n     * @return the default number format specific to the given locale.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.SimplexTableau#130",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.SimplexTableau(org.apache.commons.math3.optimization.linear.LinearObjectiveFunction, java.util.Collection<org.apache.commons.math3.optimization.linear.LinearConstraint>, org.apache.commons.math3.optimization.GoalType, boolean, double, int)",
+        "snippet": "    SimplexTableau(final LinearObjectiveFunction f,\n                   final Collection<LinearConstraint> constraints,\n                   final GoalType goalType, final boolean restrictToNonNegative,\n                   final double epsilon,\n                   final int maxUlps) {\n        this.f                      = f;\n        this.constraints            = normalizeConstraints(constraints);\n        this.restrictToNonNegative  = restrictToNonNegative;\n        this.epsilon                = epsilon;\n        this.maxUlps                = maxUlps;\n        this.numDecisionVariables   = f.getCoefficients().getDimension() +\n                                      (restrictToNonNegative ? 0 : 1);\n        this.numSlackVariables      = getConstraintTypeCounts(Relationship.LEQ) +\n                                      getConstraintTypeCounts(Relationship.GEQ);\n        this.numArtificialVariables = getConstraintTypeCounts(Relationship.EQ) +\n                                      getConstraintTypeCounts(Relationship.GEQ);\n        this.tableau = createTableau(goalType == GoalType.MAXIMIZE);\n        initializeColumnLabels();\n    }\n",
+        "begin_line": 130,
+        "end_line": 148,
+        "comment": "\n     * Build a tableau for a linear problem.\n     * @param f linear objective function\n     * @param constraints linear constraints\n     * @param goalType type of optimization goal: either {@link GoalType#MAXIMIZE}\n     * or {@link GoalType#MINIMIZE}\n     * @param restrictToNonNegative whether to restrict the variables to non-negative values\n     * @param epsilon amount of error to accept when checking for optimality\n     * @param maxUlps amount of error to accept in floating point comparisons\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.normalizeConstraints#246",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.normalizeConstraints(java.util.Collection<org.apache.commons.math3.optimization.linear.LinearConstraint>)",
+        "snippet": "    public List<LinearConstraint> normalizeConstraints(Collection<LinearConstraint> originalConstraints) {\n        List<LinearConstraint> normalized = new ArrayList<LinearConstraint>();\n        for (LinearConstraint constraint : originalConstraints) {\n            normalized.add(normalize(constraint));\n        }\n        return normalized;\n    }\n",
+        "begin_line": 246,
+        "end_line": 252,
+        "comment": "\n     * Get new versions of the constraints which have positive right hand sides.\n     * @param originalConstraints original (not normalized) constraints\n     * @return new versions of the constraints\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getNumObjectiveFunctions#273",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getNumObjectiveFunctions()",
+        "snippet": "    protected final int getNumObjectiveFunctions() {\n        return this.numArtificialVariables > 0 ? 2 : 1;\n    }\n",
+        "begin_line": 273,
+        "end_line": 275,
+        "comment": "\n     * Get the number of objective functions in this tableau.\n     * @return 2 for Phase 1.  1 for Phase 2.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getConstraintTypeCounts#282",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getConstraintTypeCounts(org.apache.commons.math3.optimization.linear.Relationship)",
+        "snippet": "    private int getConstraintTypeCounts(final Relationship relationship) {\n        int count = 0;\n        for (final LinearConstraint constraint : constraints) {\n            if (constraint.getRelationship() == relationship) {\n                ++count;\n            }\n        }\n        return count;\n    }\n",
+        "begin_line": 282,
+        "end_line": 290,
+        "comment": "\n     * Get a count of constraints corresponding to a specified relationship.\n     * @param relationship relationship to count\n     * @return number of constraint with the specified relationship\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.copyArray#373",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.copyArray(double[], double[])",
+        "snippet": "    private void copyArray(final double[] src, final double[] dest) {\n        System.arraycopy(src, 0, dest, getNumObjectiveFunctions(), src.length);\n    }\n",
+        "begin_line": 373,
+        "end_line": 375,
+        "comment": "\n     * @param src the source array\n     * @param dest the destination array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getOriginalNumDecisionVariables#538",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getOriginalNumDecisionVariables()",
+        "snippet": "    protected final int getOriginalNumDecisionVariables() {\n        return f.getCoefficients().getDimension();\n    }\n",
+        "begin_line": 538,
+        "end_line": 540,
+        "comment": "\n     * Get the original number of decision variables.\n     * @return original number of decision variables\n     * @see #getNumDecisionVariables()\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getNumSlackVariables#546",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getNumSlackVariables()",
+        "snippet": "    protected final int getNumSlackVariables() {\n        return numSlackVariables;\n    }\n",
+        "begin_line": 546,
+        "end_line": 548,
+        "comment": "\n     * Get the number of slack variables.\n     * @return number of slack variables\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimplexTableau.getNumArtificialVariables#554",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/SimplexTableau.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.SimplexTableau",
+        "signature": "org.apache.commons.math3.optimization.linear.SimplexTableau.getNumArtificialVariables()",
+        "snippet": "    protected final int getNumArtificialVariables() {\n        return numArtificialVariables;\n    }\n",
+        "begin_line": 554,
+        "end_line": 556,
+        "comment": "\n     * Get the number of artificial variables.\n     * @return number of artificial variables\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Relationship.Relationship#42",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/Relationship.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.Relationship",
+        "signature": "org.apache.commons.math3.optimization.linear.Relationship.Relationship(java.lang.String)",
+        "snippet": "    private Relationship(String stringValue) {\n        this.stringValue = stringValue;\n    }\n",
+        "begin_line": 42,
+        "end_line": 44,
+        "comment": " Simple constructor.\n     * @param stringValue display string for the relationship\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearObjectiveFunction.LinearObjectiveFunction#57",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearObjectiveFunction.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction.LinearObjectiveFunction(double[], double)",
+        "snippet": "    public LinearObjectiveFunction(double[] coefficients, double constantTerm) {\n        this(new ArrayRealVector(coefficients), constantTerm);\n    }\n",
+        "begin_line": 57,
+        "end_line": 59,
+        "comment": "\n     * @param coefficients The coefficients for the linear equation being optimized\n     * @param constantTerm The constant term of the linear equation\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearObjectiveFunction.LinearObjectiveFunction#65",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearObjectiveFunction.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction.LinearObjectiveFunction(org.apache.commons.math3.linear.RealVector, double)",
+        "snippet": "    public LinearObjectiveFunction(RealVector coefficients, double constantTerm) {\n        this.coefficients = coefficients;\n        this.constantTerm = constantTerm;\n    }\n",
+        "begin_line": 65,
+        "end_line": 68,
+        "comment": "\n     * @param coefficients The coefficients for the linear equation being optimized\n     * @param constantTerm The constant term of the linear equation\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearObjectiveFunction.getCoefficients#74",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearObjectiveFunction.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction.getCoefficients()",
+        "snippet": "    public RealVector getCoefficients() {\n        return coefficients;\n    }\n",
+        "begin_line": 74,
+        "end_line": 76,
+        "comment": "\n     * Get the coefficients of the linear equation being optimized.\n     * @return coefficients of the linear equation being optimized\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearObjectiveFunction.getConstantTerm#82",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearObjectiveFunction.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearObjectiveFunction.getConstantTerm()",
+        "snippet": "    public double getConstantTerm() {\n        return constantTerm;\n    }\n",
+        "begin_line": 82,
+        "end_line": 84,
+        "comment": "\n     * Get the constant of the linear equation being optimized.\n     * @return constant of the linear equation being optimized\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearConstraint.LinearConstraint#79",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearConstraint.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearConstraint",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearConstraint.LinearConstraint(double[], org.apache.commons.math3.optimization.linear.Relationship, double)",
+        "snippet": "    public LinearConstraint(final double[] coefficients, final Relationship relationship,\n                            final double value) {\n        this(new ArrayRealVector(coefficients), relationship, value);\n    }\n",
+        "begin_line": 79,
+        "end_line": 82,
+        "comment": "\n     * Build a constraint involving a single linear equation.\n     * <p>\n     * A linear constraint with a single linear equation has one of the forms:\n     * <ul>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> = v</li>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> &lt;= v</li>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> >= v</li>\n     * </ul>\n     * </p>\n     * @param coefficients The coefficients of the constraint (left hand side)\n     * @param relationship The type of (in)equality used in the constraint\n     * @param value The value of the constraint (right hand side)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearConstraint.LinearConstraint#98",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearConstraint.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearConstraint",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearConstraint.LinearConstraint(org.apache.commons.math3.linear.RealVector, org.apache.commons.math3.optimization.linear.Relationship, double)",
+        "snippet": "    public LinearConstraint(final RealVector coefficients, final Relationship relationship,\n                            final double value) {\n        this.coefficients = coefficients;\n        this.relationship = relationship;\n        this.value        = value;\n    }\n",
+        "begin_line": 98,
+        "end_line": 103,
+        "comment": "\n     * Build a constraint involving a single linear equation.\n     * <p>\n     * A linear constraint with a single linear equation has one of the forms:\n     * <ul>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> = v</li>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> &lt;= v</li>\n     *   <li>c<sub>1</sub>x<sub>1</sub> + ... c<sub>n</sub>x<sub>n</sub> >= v</li>\n     * </ul>\n     * </p>\n     * @param coefficients The coefficients of the constraint (left hand side)\n     * @param relationship The type of (in)equality used in the constraint\n     * @param value The value of the constraint (right hand side)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearConstraint.getCoefficients#167",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearConstraint.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearConstraint",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearConstraint.getCoefficients()",
+        "snippet": "    public RealVector getCoefficients() {\n        return coefficients;\n    }\n",
+        "begin_line": 167,
+        "end_line": 169,
+        "comment": "\n     * Get the coefficients of the constraint (left hand side).\n     * @return coefficients of the constraint (left hand side)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearConstraint.getRelationship#175",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearConstraint.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearConstraint",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearConstraint.getRelationship()",
+        "snippet": "    public Relationship getRelationship() {\n        return relationship;\n    }\n",
+        "begin_line": 175,
+        "end_line": 177,
+        "comment": "\n     * Get the relationship between left and right hand sides.\n     * @return relationship between left and right hand sides\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "LinearConstraint.getValue#183",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/optimization/linear/LinearConstraint.java",
+        "class_name": "org.apache.commons.math3.optimization.linear.LinearConstraint",
+        "signature": "org.apache.commons.math3.optimization.linear.LinearConstraint.getValue()",
+        "snippet": "    public double getValue() {\n        return value;\n    }\n",
+        "begin_line": 183,
+        "end_line": 185,
+        "comment": "\n     * Get the value of the constraint (right hand side).\n     * @return value of the constraint (right hand side)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.RealVectorFormat#81",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math3.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math3.linear.RealVectorFormat.RealVectorFormat(java.text.NumberFormat)",
+        "snippet": "    public RealVectorFormat(final NumberFormat format) {\n        this(DEFAULT_PREFIX, DEFAULT_SUFFIX, DEFAULT_SEPARATOR, format);\n    }\n",
+        "begin_line": 81,
+        "end_line": 83,
+        "comment": "\n     * Create an instance with a custom number format for components.\n     * @param format the custom format for components.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.RealVectorFormat#105",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math3.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math3.linear.RealVectorFormat.RealVectorFormat(java.lang.String, java.lang.String, java.lang.String, java.text.NumberFormat)",
+        "snippet": "    public RealVectorFormat(final String prefix, final String suffix,\n                            final String separator, final NumberFormat format) {\n        this.prefix      = prefix;\n        this.suffix      = suffix;\n        this.separator   = separator;\n        trimmedPrefix    = prefix.trim();\n        trimmedSuffix    = suffix.trim();\n        trimmedSeparator = separator.trim();\n        this.format      = format;\n    }\n",
+        "begin_line": 105,
+        "end_line": 114,
+        "comment": "\n     * Create an instance with custom prefix, suffix, separator and format\n     * for components.\n     * @param prefix prefix to use instead of the default \"{\"\n     * @param suffix suffix to use instead of the default \"}\"\n     * @param separator separator to use instead of the default \"; \"\n     * @param format the custom format for components.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.getInstance#161",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math3.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math3.linear.RealVectorFormat.getInstance()",
+        "snippet": "    public static RealVectorFormat getInstance() {\n        return getInstance(Locale.getDefault());\n    }\n",
+        "begin_line": 161,
+        "end_line": 163,
+        "comment": "\n     * Returns the default real vector format for the current locale.\n     * @return the default real vector format.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.getInstance#170",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math3.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math3.linear.RealVectorFormat.getInstance(java.util.Locale)",
+        "snippet": "    public static RealVectorFormat getInstance(final Locale locale) {\n        return new RealVectorFormat(CompositeFormat.getDefaultNumberFormat(locale));\n    }\n",
+        "begin_line": 170,
+        "end_line": 172,
+        "comment": "\n     * Returns the default real vector format for the given locale.\n     * @param locale the specific locale used by the format.\n     * @return the real vector format specific to the given locale.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVector.mapMultiply#526",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/RealVector.java",
+        "class_name": "org.apache.commons.math3.linear.RealVector",
+        "signature": "org.apache.commons.math3.linear.RealVector.mapMultiply(double)",
+        "snippet": "    public RealVector mapMultiply(double d) {\n        return copy().mapMultiplyToSelf(d);\n    }\n",
+        "begin_line": 526,
+        "end_line": 528,
+        "comment": "\n     * Multiply each entry by the argument. Returns a new vector.\n     * Does not change instance data.\n     *\n     * @param d Multiplication factor.\n     * @return {@code this} * {@code d}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkMatrixIndex#365",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math3.linear.MatrixUtils",
+        "signature": "org.apache.commons.math3.linear.MatrixUtils.checkMatrixIndex(org.apache.commons.math3.linear.AnyMatrix, int, int)",
+        "snippet": "    public static void checkMatrixIndex(final AnyMatrix m,\n                                        final int row, final int column) {\n        checkRowIndex(m, row);\n        checkColumnIndex(m, column);\n    }\n",
+        "begin_line": 365,
+        "end_line": 369,
+        "comment": "\n     * Check if matrix indices are valid.\n     *\n     * @param m Matrix.\n     * @param row Row index to check.\n     * @param column Column index to check.\n     * @throws OutOfRangeException if {@code row} or {@code column} is not\n     * a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkRowIndex#378",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math3.linear.MatrixUtils",
+        "signature": "org.apache.commons.math3.linear.MatrixUtils.checkRowIndex(org.apache.commons.math3.linear.AnyMatrix, int)",
+        "snippet": "    public static void checkRowIndex(final AnyMatrix m, final int row) {\n        if (row < 0 ||\n            row >= m.getRowDimension()) {\n            throw new OutOfRangeException(LocalizedFormats.ROW_INDEX,\n                                          row, 0, m.getRowDimension() - 1);\n        }\n    }\n",
+        "begin_line": 378,
+        "end_line": 384,
+        "comment": "\n     * Check if a row index is valid.\n     *\n     * @param m Matrix.\n     * @param row Row index to check.\n     * @throws OutOfRangeException if {@code row} is not a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkColumnIndex#393",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math3.linear.MatrixUtils",
+        "signature": "org.apache.commons.math3.linear.MatrixUtils.checkColumnIndex(org.apache.commons.math3.linear.AnyMatrix, int)",
+        "snippet": "    public static void checkColumnIndex(final AnyMatrix m, final int column) {\n        if (column < 0 || column >= m.getColumnDimension()) {\n            throw new OutOfRangeException(LocalizedFormats.COLUMN_INDEX,\n                                           column, 0, m.getColumnDimension() - 1);\n        }\n    }\n",
+        "begin_line": 393,
+        "end_line": 398,
+        "comment": "\n     * Check if a column index is valid.\n     *\n     * @param m Matrix.\n     * @param column Column index to check.\n     * @throws OutOfRangeException if {@code column} is not a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#84",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.ArrayRealVector(double[])",
+        "snippet": "    public ArrayRealVector(double[] d) {\n        data = d.clone();\n    }\n",
+        "begin_line": 84,
+        "end_line": 86,
+        "comment": "\n     * Construct a vector from an array, copying the input array.\n     *\n     * @param d Array.\n     * @throws NullArgumentException if {@code d} is {@code null}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#198",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.ArrayRealVector(org.apache.commons.math3.linear.ArrayRealVector, boolean)",
+        "snippet": "    public ArrayRealVector(ArrayRealVector v, boolean deep) {\n        data = deep ? v.data.clone() : v.data;\n    }\n",
+        "begin_line": 198,
+        "end_line": 200,
+        "comment": "\n     * Construct a vector from another vector.\n     *\n     * @param v Vector to copy.\n     * @param deep If {@code true} perform a deep copy, otherwise perform a\n     * shallow copy.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.copy#283",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.copy()",
+        "snippet": "    @Override\n    public ArrayRealVector copy() {\n        return new ArrayRealVector(this, true);\n    }\n",
+        "begin_line": 283,
+        "end_line": 286,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Returns a (deep) copy of this vector.\n     *\n     * @return a vector copy.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.mapMultiplyToSelf#372",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.mapMultiplyToSelf(double)",
+        "snippet": "    @Override\n    public RealVector mapMultiplyToSelf(double d) {\n        for (int i = 0; i < data.length; i++) {\n            data[i] = data[i] * d;\n        }\n        return this;\n    }\n",
+        "begin_line": 372,
+        "end_line": 378,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Multiply each entry.\n     * The instance is changed in-place.\n     *\n     * @param d Multiplication factor.\n     * @return {@code this}.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.getDimension#627",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.getDimension()",
+        "snippet": "    @Override\n    public int getDimension() {\n        return data.length;\n    }\n",
+        "begin_line": 627,
+        "end_line": 630,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Returns the size of the vector.\n     *\n     * @return the size of this vector.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.toArray#731",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math3.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math3.linear.ArrayRealVector.toArray()",
+        "snippet": "    @Override\n    public double[] toArray(){\n        return data.clone();\n    }\n",
+        "begin_line": 731,
+        "end_line": 734,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.RealVector": "\n     * Convert the vector to an array of {@code double}s.\n     * The array is independent from this vector data: the elements\n     * are copied.\n     *\n     * @return an array containing a copy of the vector elements.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.Array2DRowRealMatrix#55",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.Array2DRowRealMatrix(int, int)",
+        "snippet": "    public Array2DRowRealMatrix(final int rowDimension, final int columnDimension) {\n        super(rowDimension, columnDimension);\n        data = new double[rowDimension][columnDimension];\n    }\n",
+        "begin_line": 55,
+        "end_line": 58,
+        "comment": "\n     * Create a new RealMatrix with the supplied row and column dimensions.\n     *\n     * @param rowDimension Number of rows in the new matrix.\n     * @param columnDimension Number of columns in the new matrix.\n     * @throws org.apache.commons.math3.exception.NotStrictlyPositiveException\n     * if the row or column dimension is not positive.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getDataRef#254",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.getDataRef()",
+        "snippet": "    public double[][] getDataRef() {\n        return data;\n    }\n",
+        "begin_line": 254,
+        "end_line": 256,
+        "comment": "\n     * Get a reference to the underlying data array.\n     *\n     * @return 2-dimensional array of entries.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.setEntry#300",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.setEntry(int, int, double)",
+        "snippet": "    @Override\n    public void setEntry(final int row, final int column, final double value) {\n        MatrixUtils.checkMatrixIndex(this, row, column);\n        data[row][column] = value;\n    }\n",
+        "begin_line": 300,
+        "end_line": 304,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.AbstractRealMatrix": " {@inheritDoc} ",
+            "java.io.Serializable": null,
+            "org.apache.commons.math3.linear.RealLinearOperator": null,
+            "org.apache.commons.math3.linear.RealMatrix": "\n     * Set the entry in the specified row and column.\n     * Row and column indices start at 0.\n     *\n     * @param row Row location of entry to be set.\n     * @param column Column location of entry to be set.\n     * @param value matrix entry to be set.\n     * @throws org.apache.commons.math3.exception.OutOfRangeException if\n     * the row or column index is not valid\n     * @since 2.0\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getRowDimension#321",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.getRowDimension()",
+        "snippet": "    @Override\n    public int getRowDimension() {\n        return (data == null) ? 0 : data.length;\n    }\n",
+        "begin_line": 321,
+        "end_line": 324,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.AbstractRealMatrix": "\n     * Returns the number of rows of this matrix.\n     *\n     * @return the number of rows.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getColumnDimension#327",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math3.linear.Array2DRowRealMatrix.getColumnDimension()",
+        "snippet": "    @Override\n    public int getColumnDimension() {\n        return ((data == null) || (data[0] == null)) ? 0 : data[0].length;\n    }\n",
+        "begin_line": 327,
+        "end_line": 330,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math3.linear.AbstractRealMatrix": "\n     * Returns the number of columns of this matrix.\n     *\n     * @return the number of columns.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.AbstractRealMatrix#53",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math3.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math3.linear.AbstractRealMatrix.AbstractRealMatrix(int, int)",
+        "snippet": "    protected AbstractRealMatrix(final int rowDimension, final int columnDimension) {\n        if (rowDimension < 1) {\n            throw new NotStrictlyPositiveException(rowDimension);\n        }\n        if (columnDimension < 1) {\n            throw new NotStrictlyPositiveException(columnDimension);\n        }\n    }\n",
+        "begin_line": 53,
+        "end_line": 60,
+        "comment": "\n     * Create a new RealMatrix with the supplied row and column dimensions.\n     *\n     * @param rowDimension  the number of rows in the new matrix\n     * @param columnDimension  the number of columns in the new matrix\n     * @throws NotStrictlyPositiveException if row or column dimension is not positive\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.189
+        },
+        "num_failing_tests": 1
+    }
+]

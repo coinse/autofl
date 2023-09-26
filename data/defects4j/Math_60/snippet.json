@@ -1,0 +1,616 @@
+[
+    {
+        "name": "FastMath.exp#631",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.exp(double, double, double[])",
+        "snippet": "    private static double exp(double x, double extra, double[] hiPrec) {\n        double intPartA;\n        double intPartB;\n        int intVal;\n\n        /* Lookup exp(floor(x)).\n         * intPartA will have the upper 22 bits, intPartB will have the lower\n         * 52 bits.\n         */\n        if (x < 0.0) {\n            intVal = (int) -x;\n\n            if (intVal > 746) {\n                if (hiPrec != null) {\n                    hiPrec[0] = 0.0;\n                    hiPrec[1] = 0.0;\n                }\n                return 0.0;\n            }\n\n            if (intVal > 709) {\n                /* This will produce a subnormal output */\n                final double result = exp(x+40.19140625, extra, hiPrec) / 285040095144011776.0;\n                if (hiPrec != null) {\n                    hiPrec[0] /= 285040095144011776.0;\n                    hiPrec[1] /= 285040095144011776.0;\n                }\n                return result;\n            }\n\n            if (intVal == 709) {\n                /* exp(1.494140625) is nearly a machine number... */\n                final double result = exp(x+1.494140625, extra, hiPrec) / 4.455505956692756620;\n                if (hiPrec != null) {\n                    hiPrec[0] /= 4.455505956692756620;\n                    hiPrec[1] /= 4.455505956692756620;\n                }\n                return result;\n            }\n\n            intVal++;\n\n            intPartA = EXP_INT_TABLE_A[750-intVal];\n            intPartB = EXP_INT_TABLE_B[750-intVal];\n\n            intVal = -intVal;\n        } else {\n            intVal = (int) x;\n\n            if (intVal > 709) {\n                if (hiPrec != null) {\n                    hiPrec[0] = Double.POSITIVE_INFINITY;\n                    hiPrec[1] = 0.0;\n                }\n                return Double.POSITIVE_INFINITY;\n            }\n\n            intPartA = EXP_INT_TABLE_A[750+intVal];\n            intPartB = EXP_INT_TABLE_B[750+intVal];\n        }\n\n        /* Get the fractional part of x, find the greatest multiple of 2^-10 less than\n         * x and look up the exp function of it.\n         * fracPartA will have the upper 22 bits, fracPartB the lower 52 bits.\n         */\n        final int intFrac = (int) ((x - intVal) * 1024.0);\n        final double fracPartA = EXP_FRAC_TABLE_A[intFrac];\n        final double fracPartB = EXP_FRAC_TABLE_B[intFrac];\n\n        /* epsilon is the difference in x from the nearest multiple of 2^-10.  It\n         * has a value in the range 0 <= epsilon < 2^-10.\n         * Do the subtraction from x as the last step to avoid possible loss of percison.\n         */\n        final double epsilon = x - (intVal + intFrac / 1024.0);\n\n        /* Compute z = exp(epsilon) - 1.0 via a minimax polynomial.  z has\n       full double precision (52 bits).  Since z < 2^-10, we will have\n       62 bits of precision when combined with the contant 1.  This will be\n       used in the last addition below to get proper rounding. */\n\n        /* Remez generated polynomial.  Converges on the interval [0, 2^-10], error\n       is less than 0.5 ULP */\n        double z = 0.04168701738764507;\n        z = z * epsilon + 0.1666666505023083;\n        z = z * epsilon + 0.5000000000042687;\n        z = z * epsilon + 1.0;\n        z = z * epsilon + -3.940510424527919E-20;\n\n        /* Compute (intPartA+intPartB) * (fracPartA+fracPartB) by binomial\n       expansion.\n       tempA is exact since intPartA and intPartB only have 22 bits each.\n       tempB will have 52 bits of precision.\n         */\n        double tempA = intPartA * fracPartA;\n        double tempB = intPartA * fracPartB + intPartB * fracPartA + intPartB * fracPartB;\n\n        /* Compute the result.  (1+z)(tempA+tempB).  Order of operations is\n       important.  For accuracy add by increasing size.  tempA is exact and\n       much larger than the others.  If there are extra bits specified from the\n       pow() function, use them. */\n        final double tempC = tempB + tempA;\n        final double result;\n        if (extra != 0.0) {\n            result = tempC*extra*z + tempC*extra + tempC*z + tempB + tempA;\n        } else {\n            result = tempC*z + tempB + tempA;\n        }\n\n        if (hiPrec != null) {\n            // If requesting high precision\n            hiPrec[0] = tempA;\n            hiPrec[1] = tempC*extra*z + tempC*extra + tempC*z + tempB;\n        }\n\n        return result;\n    }\n",
+        "begin_line": 631,
+        "end_line": 746,
+        "comment": "\n     * Internal helper method for exponential function.\n     * @param x original argument of the exponential function\n     * @param extra extra bits of precision on input (To Be Confirmed)\n     * @param hiPrec extra bits of precision on output (To Be Confirmed)\n     * @return exp(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ContinuedFraction.evaluate#126",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/ContinuedFraction.java",
+        "class_name": "org.apache.commons.math.util.ContinuedFraction",
+        "signature": "org.apache.commons.math.util.ContinuedFraction.evaluate(double, double, int)",
+        "snippet": "    public double evaluate(double x, double epsilon, int maxIterations)\n        throws MathException\n    {\n        double p0 = 1.0;\n        double p1 = getA(0, x);\n        double q0 = 0.0;\n        double q1 = 1.0;\n        double c = p1 / q1;\n        int n = 0;\n        double relativeError = Double.MAX_VALUE;\n        while (n < maxIterations && relativeError > epsilon) {\n            ++n;\n            double a = getA(n, x);\n            double b = getB(n, x);\n            double p2 = a * p1 + b * p0;\n            double q2 = a * q1 + b * q0;\n            boolean infinite = false;\n            if (Double.isInfinite(p2) || Double.isInfinite(q2)) {\n                /*\n                 * Need to scale. Try successive powers of the larger of a or b\n                 * up to 5th power. Throw ConvergenceException if one or both\n                 * of p2, q2 still overflow.\n                 */\n                double scaleFactor = 1d;\n                double lastScaleFactor = 1d;\n                final int maxPower = 5;\n                final double scale = FastMath.max(a,b);\n                if (scale <= 0) {  // Can't scale\n                    throw new ConvergenceException(\n                            LocalizedFormats.CONTINUED_FRACTION_INFINITY_DIVERGENCE,\n                             x);\n                }\n                infinite = true;\n                for (int i = 0; i < maxPower; i++) {\n                    lastScaleFactor = scaleFactor;\n                    scaleFactor *= scale;\n                    if (a != 0.0 && a > b) {\n                        p2 = p1 / lastScaleFactor + (b / scaleFactor * p0);\n                        q2 = q1 / lastScaleFactor + (b / scaleFactor * q0);\n                    } else if (b != 0) {\n                        p2 = (a / scaleFactor * p1) + p0 / lastScaleFactor;\n                        q2 = (a / scaleFactor * q1) + q0 / lastScaleFactor;\n                    }\n                    infinite = Double.isInfinite(p2) || Double.isInfinite(q2);\n                    if (!infinite) {\n                        break;\n                    }\n                }\n            }\n\n            if (infinite) {\n               // Scaling failed\n               throw new ConvergenceException(\n                 LocalizedFormats.CONTINUED_FRACTION_INFINITY_DIVERGENCE,\n                  x);\n            }\n\n            double r = p2 / q2;\n\n            if (Double.isNaN(r)) {\n                throw new ConvergenceException(\n                  LocalizedFormats.CONTINUED_FRACTION_NAN_DIVERGENCE,\n                  x);\n            }\n            relativeError = FastMath.abs(r / c - 1.0);\n\n            // prepare for next iteration\n            c = p2 / q2;\n            p0 = p1;\n            p1 = p2;\n            q0 = q1;\n            q1 = q2;\n        }\n\n        if (n >= maxIterations) {\n            throw new MaxIterationsExceededException(maxIterations,\n                LocalizedFormats.NON_CONVERGENT_CONTINUED_FRACTION,\n                x);\n        }\n\n        return c;\n    }\n",
+        "begin_line": 126,
+        "end_line": 207,
+        "comment": "\n     * <p>\n     * Evaluates the continued fraction at the value x.\n     * </p>\n     *\n     * <p>\n     * The implementation of this method is based on equations 14-17 of:\n     * <ul>\n     * <li>\n     *   Eric W. Weisstein. \"Continued Fraction.\" From MathWorld--A Wolfram Web\n     *   Resource. <a target=\"_blank\"\n     *   href=\"http://mathworld.wolfram.com/ContinuedFraction.html\">\n     *   http://mathworld.wolfram.com/ContinuedFraction.html</a>\n     * </li>\n     * </ul>\n     * The recurrence relationship defined in those equations can result in\n     * very large intermediate results which can result in numerical overflow.\n     * As a means to combat these overflow conditions, the intermediate results\n     * are scaled whenever they threaten to become numerically unstable.</p>\n     *\n     * @param x the evaluation point.\n     * @param epsilon maximum error allowed.\n     * @param maxIterations maximum number of convergents\n     * @return the value of the continued fraction evaluated at x.\n     * @throws MathException if the algorithm fails to converge.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MathException.MathException#84",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/MathException.java",
+        "class_name": "org.apache.commons.math.MathException",
+        "signature": "org.apache.commons.math.MathException.MathException(org.apache.commons.math.exception.util.Localizable, java.lang.Object...)",
+        "snippet": "    public MathException(Localizable pattern, Object ... arguments) {\n      this.pattern   = pattern;\n      this.arguments = (arguments == null) ? new Object[0] : arguments.clone();\n    }\n",
+        "begin_line": 84,
+        "end_line": 87,
+        "comment": "\n     * Constructs a new <code>MathException</code> with specified\n     * formatted detail message.\n     * Message formatting is delegated to {@link java.text.MessageFormat}.\n     * @param pattern format specifier\n     * @param arguments format arguments\n     * @since 2.2\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MathException.getMessage#167",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/MathException.java",
+        "class_name": "org.apache.commons.math.MathException",
+        "signature": "org.apache.commons.math.MathException.getMessage(java.util.Locale)",
+        "snippet": "    public String getMessage(final Locale locale) {\n        if (pattern != null) {\n            return new MessageFormat(pattern.getLocalizedString(locale), locale).format(arguments);\n        }\n        return \"\";\n    }\n",
+        "begin_line": 167,
+        "end_line": 172,
+        "comment": " Gets the message in a specified locale.\n     *\n     * @param locale Locale in which the message should be translated\n     *\n     * @return localized message\n     * @since 1.2\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MathException.getMessage#175",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/MathException.java",
+        "class_name": "org.apache.commons.math.MathException",
+        "signature": "org.apache.commons.math.MathException.getMessage()",
+        "snippet": "    @Override\n    public String getMessage() {\n        return getMessage(Locale.US);\n    }\n",
+        "begin_line": 175,
+        "end_line": 178,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.exception.MathThrowable": " Gets the message in a conventional US locale.\n     * @return localized message\n     ",
+            "java.lang.Exception": null
+        },
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MathException.getLocalizedMessage#181",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/MathException.java",
+        "class_name": "org.apache.commons.math.MathException",
+        "signature": "org.apache.commons.math.MathException.getLocalizedMessage()",
+        "snippet": "    @Override\n    public String getLocalizedMessage() {\n        return getMessage(Locale.getDefault());\n    }\n",
+        "begin_line": 181,
+        "end_line": 184,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.exception.MathThrowable": " Gets the message in the system default locale.\n     * @return localized message\n     ",
+            "java.lang.Exception": null
+        },
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ConvergenceException.ConvergenceException#61",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergenceException.java",
+        "class_name": "org.apache.commons.math.ConvergenceException",
+        "signature": "org.apache.commons.math.ConvergenceException.ConvergenceException(org.apache.commons.math.exception.util.Localizable, java.lang.Object...)",
+        "snippet": "    public ConvergenceException(Localizable pattern, Object ... arguments) {\n        super(pattern, arguments);\n    }\n",
+        "begin_line": 61,
+        "end_line": 63,
+        "comment": "\n     * Constructs an exception with specified formatted detail message.\n     * Message formatting is delegated to {@link java.text.MessageFormat}.\n     * @param pattern format specifier\n     * @param arguments format arguments\n     * @since 2.2\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Gamma.regularizedGammaP#158",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Gamma.java",
+        "class_name": "org.apache.commons.math.special.Gamma",
+        "signature": "org.apache.commons.math.special.Gamma.regularizedGammaP(double, double, double, int)",
+        "snippet": "    public static double regularizedGammaP(double a,\n                                           double x,\n                                           double epsilon,\n                                           int maxIterations)\n        throws MathException\n    {\n        double ret;\n\n        if (Double.isNaN(a) || Double.isNaN(x) || (a <= 0.0) || (x < 0.0)) {\n            ret = Double.NaN;\n        } else if (x == 0.0) {\n            ret = 0.0;\n        } else if (x >= a + 1) {\n            // use regularizedGammaQ because it should converge faster in this\n            // case.\n            ret = 1.0 - regularizedGammaQ(a, x, epsilon, maxIterations);\n        } else {\n            // calculate series\n            double n = 0.0; // current element index\n            double an = 1.0 / a; // n-th element in the series\n            double sum = an; // partial sum\n            while (FastMath.abs(an/sum) > epsilon && n < maxIterations && sum < Double.POSITIVE_INFINITY) {\n                // compute next element in the series\n                n = n + 1.0;\n                an = an * (x / (a + n));\n\n                // update partial sum\n                sum = sum + an;\n            }\n            if (n >= maxIterations) {\n                throw new MaxIterationsExceededException(maxIterations);\n            } else if (Double.isInfinite(sum)) {\n                ret = 1.0;\n            } else {\n                ret = FastMath.exp(-x + (a * FastMath.log(x)) - logGamma(a)) * sum;\n            }\n        }\n\n        return ret;\n    }\n",
+        "begin_line": 158,
+        "end_line": 197,
+        "comment": "\n     * Returns the regularized gamma function P(a, x).\n     *\n     * The implementation of this method is based on:\n     * <ul>\n     * <li>\n     * <a href=\"http://mathworld.wolfram.com/RegularizedGammaFunction.html\">\n     * Regularized Gamma Function</a>, equation (1).</li>\n     * <li>\n     * <a href=\"http://mathworld.wolfram.com/IncompleteGammaFunction.html\">\n     * Incomplete Gamma Function</a>, equation (4).</li>\n     * <li>\n     * <a href=\"http://mathworld.wolfram.com/ConfluentHypergeometricFunctionoftheFirstKind.html\">\n     * Confluent Hypergeometric Function of the First Kind</a>, equation (1).\n     * </li>\n     * </ul>\n     *\n     * @param a the a parameter.\n     * @param x the value.\n     * @param epsilon When the absolute value of the nth item in the\n     *                series is less than epsilon the approximation ceases\n     *                to calculate further elements in the series.\n     * @param maxIterations Maximum number of \"iterations\" to complete.\n     * @return the regularized gamma function P(a, x)\n     * @throws MathException if the algorithm fails to converge.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.4472
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.max#3490",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.max(double, double)",
+        "snippet": "    public static double max(final double a, final double b) {\n        return (a <= b) ? b : (Double.isNaN(a + b) ? Double.NaN : a);\n    }\n",
+        "begin_line": 3490,
+        "end_line": 3492,
+        "comment": " Compute the maximum of two values\n     * @param a first value\n     * @param b second value\n     * @return b if a is lesser or equal to b, a otherwise\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.378
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Erf.erf#50",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Erf.java",
+        "class_name": "org.apache.commons.math.special.Erf",
+        "signature": "org.apache.commons.math.special.Erf.erf(double)",
+        "snippet": "    public static double erf(double x) throws MathException {\n        double ret = Gamma.regularizedGammaP(0.5, x * x, 1.0e-15, 10000);\n        if (x < 0) {\n            ret = -ret;\n        }\n        return ret;\n    }\n",
+        "begin_line": 50,
+        "end_line": 56,
+        "comment": "\n     * Returns the error function erf(x).\n     *\n     * The implementation of this method is based on:\n     * <ul>\n     * <li>\n     * <a href=\"http://mathworld.wolfram.com/Erf.html\">\n     * Erf</a>, equation (3).</li>\n     * </ul>\n     *\n     * @param x the value.\n     * @return the error function erf(x)\n     * @throws MathException if the algorithm fails to converge.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.378
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "NormalDistributionImpl.cumulativeProbability#124",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/distribution/NormalDistributionImpl.java",
+        "class_name": "org.apache.commons.math.distribution.NormalDistributionImpl",
+        "signature": "org.apache.commons.math.distribution.NormalDistributionImpl.cumulativeProbability(double)",
+        "snippet": "    public double cumulativeProbability(double x) throws MathException {\n        final double dev = x - mean;\n        try {\n        return 0.5 * (1.0 + Erf.erf((dev) /\n                    (standardDeviation * FastMath.sqrt(2.0))));\n        } catch (MaxIterationsExceededException ex) {\n            if (x < (mean - 20 * standardDeviation)) { // JDK 1.5 blows at 38\n                return 0;\n            } else if (x > (mean + 20 * standardDeviation)) {\n                return 1;\n            } else {\n                throw ex;\n            }\n        }\n    }\n",
+        "begin_line": 124,
+        "end_line": 138,
+        "comment": "\n     * For this distribution, {@code X}, this method returns {@code P(X < x)}.\n     * If {@code x}is more than 40 standard deviations from the mean, 0 or 1 is returned,\n     * as in these cases the actual value is within {@code Double.MIN_VALUE} of 0 or 1.\n     *\n     * @param x Value at which the CDF is evaluated.\n     * @return CDF evaluated at {@code x}.\n     * @throws MathException if the algorithm fails to converge\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3536
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ContinuedFraction.ContinuedFraction#46",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/ContinuedFraction.java",
+        "class_name": "org.apache.commons.math.util.ContinuedFraction",
+        "signature": "org.apache.commons.math.util.ContinuedFraction.ContinuedFraction()",
+        "snippet": "    protected ContinuedFraction() {\n        super();\n    }\n",
+        "begin_line": 46,
+        "end_line": 48,
+        "comment": "\n     * Default constructor.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Gamma.regularizedGammaQ#235",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Gamma.java",
+        "class_name": "org.apache.commons.math.special.Gamma",
+        "signature": "org.apache.commons.math.special.Gamma.regularizedGammaQ(double, double, double, int)",
+        "snippet": "    public static double regularizedGammaQ(final double a,\n                                           double x,\n                                           double epsilon,\n                                           int maxIterations)\n        throws MathException\n    {\n        double ret;\n\n        if (Double.isNaN(a) || Double.isNaN(x) || (a <= 0.0) || (x < 0.0)) {\n            ret = Double.NaN;\n        } else if (x == 0.0) {\n            ret = 1.0;\n        } else if (x < a + 1.0) {\n            // use regularizedGammaP because it should converge faster in this\n            // case.\n            ret = 1.0 - regularizedGammaP(a, x, epsilon, maxIterations);\n        } else {\n            // create continued fraction\n            ContinuedFraction cf = new ContinuedFraction() {\n\n                @Override\n                protected double getA(int n, double x) {\n                    return ((2.0 * n) + 1.0) - a + x;\n                }\n\n                @Override\n                protected double getB(int n, double x) {\n                    return n * (a - n);\n                }\n            };\n\n            ret = 1.0 / cf.evaluate(x, epsilon, maxIterations);\n            ret = FastMath.exp(-x + (a * FastMath.log(x)) - logGamma(a)) * ret;\n        }\n\n        return ret;\n    }\n",
+        "begin_line": 235,
+        "end_line": 271,
+        "comment": "\n     * Returns the regularized gamma function Q(a, x) = 1 - P(a, x).\n     *\n     * The implementation of this method is based on:\n     * <ul>\n     * <li>\n     * <a href=\"http://mathworld.wolfram.com/RegularizedGammaFunction.html\">\n     * Regularized Gamma Function</a>, equation (1).</li>\n     * <li>\n     * <a href=\"http://functions.wolfram.com/GammaBetaErf/GammaRegularized/10/0003/\">\n     * Regularized incomplete gamma function: Continued fraction representations  (formula 06.08.10.0003)</a></li>\n     * </ul>\n     *\n     * @param a the a parameter.\n     * @param x the value.\n     * @param epsilon When the absolute value of the nth item in the\n     *                series is less than epsilon the approximation ceases\n     *                to calculate further elements in the series.\n     * @param maxIterations Maximum number of \"iterations\" to complete.\n     * @return the regularized gamma function P(a, x)\n     * @throws MathException if the algorithm fails to converge.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Gamma.getA#255",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Gamma.java",
+        "class_name": "org.apache.commons.math.special.Gamma",
+        "signature": "org.apache.commons.math.special.Gamma.Anonymous-93f50639-9e9c-4da6-a44e-aebffc96afe5.getA(int, double)",
+        "snippet": "                @Override\n                protected double getA(int n, double x) {\n                    return ((2.0 * n) + 1.0) - a + x;\n                }\n",
+        "begin_line": 255,
+        "end_line": 258,
+        "comment": "",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Gamma.getB#260",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Gamma.java",
+        "class_name": "org.apache.commons.math.special.Gamma",
+        "signature": "org.apache.commons.math.special.Gamma.Anonymous-35e6aff0-2b50-4aa6-9389-24821b1ff71d.getB(int, double)",
+        "snippet": "                @Override\n                protected double getB(int n, double x) {\n                    return n * (a - n);\n                }\n",
+        "begin_line": 260,
+        "end_line": 263,
+        "comment": "",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.log#1164",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.log(double, double[])",
+        "snippet": "    private static double log(final double x, final double[] hiPrec) {\n        long bits = Double.doubleToLongBits(x);\n\n        /* Handle special cases of negative input, and NaN */\n        if ((bits & 0x8000000000000000L) != 0 || x != x) {\n            if (x != 0.0) {\n                if (hiPrec != null) {\n                    hiPrec[0] = Double.NaN;\n                }\n\n                return Double.NaN;\n            }\n        }\n\n        /* Handle special cases of Positive infinity. */\n        if (x == Double.POSITIVE_INFINITY) {\n            if (hiPrec != null) {\n                hiPrec[0] = Double.POSITIVE_INFINITY;\n            }\n\n            return Double.POSITIVE_INFINITY;\n        }\n\n        /* Extract the exponent */\n        int exp = (int)(bits >> 52)-1023;\n\n        if ((bits & 0x7ff0000000000000L) == 0) {\n            // Subnormal!\n            if (x == 0) {\n                // Zero\n                if (hiPrec != null) {\n                    hiPrec[0] = Double.NEGATIVE_INFINITY;\n                }\n\n                return Double.NEGATIVE_INFINITY;\n            }\n\n            /* Normalize the subnormal number. */\n            bits <<= 1;\n            while ( (bits & 0x0010000000000000L) == 0) {\n                exp--;\n                bits <<= 1;\n            }\n        }\n\n\n        if (exp == -1 || exp == 0) {\n            if (x < 1.01 && x > 0.99 && hiPrec == null) {\n                /* The normal method doesn't work well in the range [0.99, 1.01], so call do a straight\n           polynomial expansion in higer precision. */\n\n               /* Compute x - 1.0 and split it */\n                double xa = x - 1.0;\n                double xb = xa - x + 1.0;\n                double tmp = xa * 1073741824.0;\n                double aa = xa + tmp - tmp;\n                double ab = xa - aa;\n                xa = aa;\n                xb = ab;\n\n                double ya = LN_QUICK_COEF[LN_QUICK_COEF.length-1][0];\n                double yb = LN_QUICK_COEF[LN_QUICK_COEF.length-1][1];\n\n                for (int i = LN_QUICK_COEF.length - 2; i >= 0; i--) {\n                    /* Multiply a = y * x */\n                    aa = ya * xa;\n                    ab = ya * xb + yb * xa + yb * xb;\n                    /* split, so now y = a */\n                    tmp = aa * 1073741824.0;\n                    ya = aa + tmp - tmp;\n                    yb = aa - ya + ab;\n\n                    /* Add  a = y + lnQuickCoef */\n                    aa = ya + LN_QUICK_COEF[i][0];\n                    ab = yb + LN_QUICK_COEF[i][1];\n                    /* Split y = a */\n                    tmp = aa * 1073741824.0;\n                    ya = aa + tmp - tmp;\n                    yb = aa - ya + ab;\n                }\n\n                /* Multiply a = y * x */\n                aa = ya * xa;\n                ab = ya * xb + yb * xa + yb * xb;\n                /* split, so now y = a */\n                tmp = aa * 1073741824.0;\n                ya = aa + tmp - tmp;\n                yb = aa - ya + ab;\n\n                return ya + yb;\n            }\n        }\n\n        // lnm is a log of a number in the range of 1.0 - 2.0, so 0 <= lnm < ln(2)\n        double lnm[] = LN_MANT[(int)((bits & 0x000ffc0000000000L) >> 42)];\n\n        /*\n    double epsilon = x / Double.longBitsToDouble(bits & 0xfffffc0000000000L);\n\n    epsilon -= 1.0;\n         */\n\n        // y is the most significant 10 bits of the mantissa\n        //double y = Double.longBitsToDouble(bits & 0xfffffc0000000000L);\n        //double epsilon = (x - y) / y;\n        double epsilon = (double)(bits & 0x3ffffffffffL) / (4503599627370496.0 + (bits & 0x000ffc0000000000L));\n\n        double lnza = 0.0;\n        double lnzb = 0.0;\n\n        if (hiPrec != null) {\n            /* split epsilon -> x */\n            double tmp = epsilon * 1073741824.0;\n            double aa = epsilon + tmp - tmp;\n            double ab = epsilon - aa;\n            double xa = aa;\n            double xb = ab;\n\n            /* Need a more accurate epsilon, so adjust the division. */\n            double numer = (double)(bits & 0x3ffffffffffL);\n            double denom = 4503599627370496.0 + (bits & 0x000ffc0000000000L);\n            aa = numer - xa*denom - xb * denom;\n            xb += aa / denom;\n\n            /* Remez polynomial evaluation */\n            double ya = LN_HI_PREC_COEF[LN_HI_PREC_COEF.length-1][0];\n            double yb = LN_HI_PREC_COEF[LN_HI_PREC_COEF.length-1][1];\n\n            for (int i = LN_HI_PREC_COEF.length - 2; i >= 0; i--) {\n                /* Multiply a = y * x */\n                aa = ya * xa;\n                ab = ya * xb + yb * xa + yb * xb;\n                /* split, so now y = a */\n                tmp = aa * 1073741824.0;\n                ya = aa + tmp - tmp;\n                yb = aa - ya + ab;\n\n                /* Add  a = y + lnHiPrecCoef */\n                aa = ya + LN_HI_PREC_COEF[i][0];\n                ab = yb + LN_HI_PREC_COEF[i][1];\n                /* Split y = a */\n                tmp = aa * 1073741824.0;\n                ya = aa + tmp - tmp;\n                yb = aa - ya + ab;\n            }\n\n            /* Multiply a = y * x */\n            aa = ya * xa;\n            ab = ya * xb + yb * xa + yb * xb;\n\n            /* split, so now lnz = a */\n            /*\n      tmp = aa * 1073741824.0;\n      lnza = aa + tmp - tmp;\n      lnzb = aa - lnza + ab;\n             */\n            lnza = aa + ab;\n            lnzb = -(lnza - aa - ab);\n        } else {\n            /* High precision not required.  Eval Remez polynomial\n         using standard double precision */\n            lnza = -0.16624882440418567;\n            lnza = lnza * epsilon + 0.19999954120254515;\n            lnza = lnza * epsilon + -0.2499999997677497;\n            lnza = lnza * epsilon + 0.3333333333332802;\n            lnza = lnza * epsilon + -0.5;\n            lnza = lnza * epsilon + 1.0;\n            lnza = lnza * epsilon;\n        }\n\n        /* Relative sizes:\n         * lnzb     [0, 2.33E-10]\n         * lnm[1]   [0, 1.17E-7]\n         * ln2B*exp [0, 1.12E-4]\n         * lnza      [0, 9.7E-4]\n         * lnm[0]   [0, 0.692]\n         * ln2A*exp [0, 709]\n         */\n\n        /* Compute the following sum:\n         * lnzb + lnm[1] + ln2B*exp + lnza + lnm[0] + ln2A*exp;\n         */\n\n        //return lnzb + lnm[1] + ln2B*exp + lnza + lnm[0] + ln2A*exp;\n        double a = LN_2_A*exp;\n        double b = 0.0;\n        double c = a+lnm[0];\n        double d = -(c-a-lnm[0]);\n        a = c;\n        b = b + d;\n\n        c = a + lnza;\n        d = -(c - a - lnza);\n        a = c;\n        b = b + d;\n\n        c = a + LN_2_B*exp;\n        d = -(c - a - LN_2_B*exp);\n        a = c;\n        b = b + d;\n\n        c = a + lnm[1];\n        d = -(c - a - lnm[1]);\n        a = c;\n        b = b + d;\n\n        c = a + lnzb;\n        d = -(c - a - lnzb);\n        a = c;\n        b = b + d;\n\n        if (hiPrec != null) {\n            hiPrec[0] = a;\n            hiPrec[1] = b;\n        }\n\n        return a + b;\n    }\n",
+        "begin_line": 1164,
+        "end_line": 1381,
+        "comment": "\n     * Internal helper method for natural logarithm function.\n     * @param x original argument of the natural logarithm function\n     * @param hiPrec extra bits of precision on output (To Be Confirmed)\n     * @return log(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Gamma.logGamma#95",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/special/Gamma.java",
+        "class_name": "org.apache.commons.math.special.Gamma",
+        "signature": "org.apache.commons.math.special.Gamma.logGamma(double)",
+        "snippet": "    public static double logGamma(double x) {\n        double ret;\n\n        if (Double.isNaN(x) || (x <= 0.0)) {\n            ret = Double.NaN;\n        } else {\n            double g = 607.0 / 128.0;\n\n            double sum = 0.0;\n            for (int i = LANCZOS.length - 1; i > 0; --i) {\n                sum = sum + (LANCZOS[i] / (x + i));\n            }\n            sum = sum + LANCZOS[0];\n\n            double tmp = x + g + .5;\n            ret = ((x + .5) * FastMath.log(tmp)) - tmp +\n                HALF_LOG_2_PI + FastMath.log(sum / x);\n        }\n\n        return ret;\n    }\n",
+        "begin_line": 95,
+        "end_line": 115,
+        "comment": "\n     * Returns the natural logarithm of the gamma function &#915;(x).\n     *\n     * The implementation of this method is based on:\n     * <ul>\n     * <li><a href=\"http://mathworld.wolfram.com/GammaFunction.html\">\n     * Gamma Function</a>, equation (28).</li>\n     * <li><a href=\"http://mathworld.wolfram.com/LanczosApproximation.html\">\n     * Lanczos Approximation</a>, equations (1) through (5).</li>\n     * <li><a href=\"http://my.fit.edu/~gabdo/gamma.txt\">Paul Godfrey, A note on\n     * the computation of the convergent Lanczos complex Gamma approximation\n     * </a></li>\n     * </ul>\n     *\n     * @param x the value.\n     * @return log(&#915;(x))\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.log#1154",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.log(double)",
+        "snippet": "    public static double log(final double x) {\n        return log(x, null);\n    }\n",
+        "begin_line": 1154,
+        "end_line": 1156,
+        "comment": "\n     * Natural logarithm.\n     *\n     * @param x   a double\n     * @return log(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.abs#3264",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.abs(double)",
+        "snippet": "    public static double abs(double x) {\n        return (x < 0.0) ? -x : x;\n    }\n",
+        "begin_line": 3264,
+        "end_line": 3266,
+        "comment": "\n     * Absolute value.\n     * @param x number from which absolute value is requested\n     * @return abs(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.exp#620",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.exp(double)",
+        "snippet": "    public static double exp(double x) {\n        return exp(x, 0.0, null);\n    }\n",
+        "begin_line": 620,
+        "end_line": 622,
+        "comment": "\n     * Exponential function.\n     *\n     * Computes exp(x), function result is nearly rounded.   It will be correctly\n     * rounded to the theoretical value for 99.9% of input values, otherwise it will\n     * have a 1 UPL error.\n     *\n     * Method:\n     *    Lookup intVal = exp(int(x))\n     *    Lookup fracVal = exp(int(x-int(x) / 1024.0) * 1024.0 );\n     *    Compute z as the exponential of the remaining bits by a polynomial minus one\n     *    exp(x) = intVal * fracVal * (1 + z)\n     *\n     * Accuracy:\n     *    Calculation is done with 63 bits of precision, so result should be correctly\n     *    rounded for 99.9% of input values, with less than 1 ULP error otherwise.\n     *\n     * @param x   a double\n     * @return double e<sup>x</sup>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2294
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.sqrt#218",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.sqrt(double)",
+        "snippet": "    public static double sqrt(final double a) {\n        return Math.sqrt(a);\n    }\n",
+        "begin_line": 218,
+        "end_line": 220,
+        "comment": " Compute the square root of a number.\n     * @param a number on which evaluation is done\n     * @return square root of a\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.slowexp#910",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.slowexp(double, double[])",
+        "snippet": "    private static double slowexp(final double x, final double result[]) {\n        final double xs[] = new double[2];\n        final double ys[] = new double[2];\n        final double facts[] = new double[2];\n        final double as[] = new double[2];\n        split(x, xs);\n        ys[0] = ys[1] = 0.0;\n\n        for (int i = 19; i >= 0; i--) {\n            splitMult(xs, ys, as);\n            ys[0] = as[0];\n            ys[1] = as[1];\n\n            split(FACT[i], as);\n            splitReciprocal(as, facts);\n\n            splitAdd(ys, facts, as);\n            ys[0] = as[0];\n            ys[1] = as[1];\n        }\n\n        if (result != null) {\n            result[0] = ys[0];\n            result[1] = ys[1];\n        }\n\n        return ys[0] + ys[1];\n    }\n",
+        "begin_line": 910,
+        "end_line": 937,
+        "comment": "\n     *  For x between 0 and 1, returns exp(x), uses extended precision\n     *  @param x argument of exponential\n     *  @param result placeholder where to place exp(x) split in two terms\n     *  for extra precision (i.e. exp(x) = result[0] \u00b0 result[1]\n     *  @return exp(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.split#944",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.split(double, double[])",
+        "snippet": "    private static void split(final double d, final double split[]) {\n        if (d < 8e298 && d > -8e298) {\n            final double a = d * 1073741824.0;\n            split[0] = (d + a) - a;\n            split[1] = d - split[0];\n        } else {\n            final double a = d * 9.31322574615478515625E-10;\n            split[0] = (d + a - d) * 1073741824.0;\n            split[1] = d - split[0];\n        }\n    }\n",
+        "begin_line": 944,
+        "end_line": 954,
+        "comment": " Compute split[0], split[1] such that their sum is equal to d,\n     * and split[0] has its 30 least significant bits as zero.\n     * @param d number to split\n     * @param split placeholder where to place the result\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.resplit#960",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.resplit(double[])",
+        "snippet": "    private static void resplit(final double a[]) {\n        final double c = a[0] + a[1];\n        final double d = -(c - a[0] - a[1]);\n\n        if (c < 8e298 && c > -8e298) {\n            double z = c * 1073741824.0;\n            a[0] = (c + z) - z;\n            a[1] = c - a[0] + d;\n        } else {\n            double z = c * 9.31322574615478515625E-10;\n            a[0] = (c + z - c) * 1073741824.0;\n            a[1] = c - a[0] + d;\n        }\n    }\n",
+        "begin_line": 960,
+        "end_line": 973,
+        "comment": " Recompute a split.\n     * @param a input/out array containing the split, changed\n     * on output\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.splitMult#980",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.splitMult(double[], double[], double[])",
+        "snippet": "    private static void splitMult(double a[], double b[], double ans[]) {\n        ans[0] = a[0] * b[0];\n        ans[1] = a[0] * b[1] + a[1] * b[0] + a[1] * b[1];\n\n        /* Resplit */\n        resplit(ans);\n    }\n",
+        "begin_line": 980,
+        "end_line": 986,
+        "comment": " Multiply two numbers in split form.\n     * @param a first term of multiplication\n     * @param b second term of multiplication\n     * @param ans placeholder where to put the result\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.splitAdd#993",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.splitAdd(double[], double[], double[])",
+        "snippet": "    private static void splitAdd(final double a[], final double b[], final double ans[]) {\n        ans[0] = a[0] + b[0];\n        ans[1] = a[1] + b[1];\n\n        resplit(ans);\n    }\n",
+        "begin_line": 993,
+        "end_line": 998,
+        "comment": " Add two numbers in split form.\n     * @param a first term of addition\n     * @param b second term of addition\n     * @param ans placeholder where to put the result\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.splitReciprocal#1018",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.splitReciprocal(double[], double[])",
+        "snippet": "    private static void splitReciprocal(final double in[], final double result[]) {\n        final double b = 1.0/4194304.0;\n        final double a = 1.0 - b;\n\n        if (in[0] == 0.0) {\n            in[0] = in[1];\n            in[1] = 0.0;\n        }\n\n        result[0] = a / in[0];\n        result[1] = (b*in[0]-a*in[1]) / (in[0]*in[0] + in[0]*in[1]);\n\n        if (result[1] != result[1]) { // can happen if result[1] is NAN\n            result[1] = 0.0;\n        }\n\n        /* Resplit */\n        resplit(result);\n\n        for (int i = 0; i < 2; i++) {\n            /* this may be overkill, probably once is enough */\n            double err = 1.0 - result[0] * in[0] - result[0] * in[1] -\n            result[1] * in[0] - result[1] * in[1];\n            /*err = 1.0 - err; */\n            err = err * (result[0] + result[1]);\n            /*printf(\"err = %16e\\n\", err); */\n            result[1] += err;\n        }\n    }\n",
+        "begin_line": 1018,
+        "end_line": 1046,
+        "comment": " Compute the reciprocal of in.  Use the following algorithm.\n     *  in = c + d.\n     *  want to find x + y such that x+y = 1/(c+d) and x is much\n     *  larger than y and x has several zero bits on the right.\n     *\n     *  Set b = 1/(2^22),  a = 1 - b.  Thus (a+b) = 1.\n     *  Use following identity to compute (a+b)/(c+d)\n     *\n     *  (a+b)/(c+d)  =   a/c   +    (bc - ad) / (c^2 + cd)\n     *  set x = a/c  and y = (bc - ad) / (c^2 + cd)\n     *  This will be close to the right answer, but there will be\n     *  some rounding in the calculation of X.  So by carefully\n     *  computing 1 - (c+d)(x+y) we can compute an error and\n     *  add that back in.   This is done carefully so that terms\n     *  of similar size are subtracted first.\n     *  @param in initial number, in split form\n     *  @param result placeholder where to put the result\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.quadMult#1053",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.quadMult(double[], double[], double[])",
+        "snippet": "    private static void quadMult(final double a[], final double b[], final double result[]) {\n        final double xs[] = new double[2];\n        final double ys[] = new double[2];\n        final double zs[] = new double[2];\n\n        /* a[0] * b[0] */\n        split(a[0], xs);\n        split(b[0], ys);\n        splitMult(xs, ys, zs);\n\n        result[0] = zs[0];\n        result[1] = zs[1];\n\n        /* a[0] * b[1] */\n        split(b[1], ys);\n        splitMult(xs, ys, zs);\n\n        double tmp = result[0] + zs[0];\n        result[1] = result[1] - (tmp - result[0] - zs[0]);\n        result[0] = tmp;\n        tmp = result[0] + zs[1];\n        result[1] = result[1] - (tmp - result[0] - zs[1]);\n        result[0] = tmp;\n\n        /* a[1] * b[0] */\n        split(a[1], xs);\n        split(b[0], ys);\n        splitMult(xs, ys, zs);\n\n        tmp = result[0] + zs[0];\n        result[1] = result[1] - (tmp - result[0] - zs[0]);\n        result[0] = tmp;\n        tmp = result[0] + zs[1];\n        result[1] = result[1] - (tmp - result[0] - zs[1]);\n        result[0] = tmp;\n\n        /* a[1] * b[0] */\n        split(a[1], xs);\n        split(b[1], ys);\n        splitMult(xs, ys, zs);\n\n        tmp = result[0] + zs[0];\n        result[1] = result[1] - (tmp - result[0] - zs[0]);\n        result[0] = tmp;\n        tmp = result[0] + zs[1];\n        result[1] = result[1] - (tmp - result[0] - zs[1]);\n        result[0] = tmp;\n    }\n",
+        "begin_line": 1053,
+        "end_line": 1100,
+        "comment": " Compute (a[0] + a[1]) * (b[0] + b[1]) in extended precision.\n     * @param a first term of the multiplication\n     * @param b second term of the multiplication\n     * @param result placeholder where to put the result\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.expint#1107",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.expint(int, double[])",
+        "snippet": "    private static double expint(int p, final double result[]) {\n        //double x = M_E;\n        final double xs[] = new double[2];\n        final double as[] = new double[2];\n        final double ys[] = new double[2];\n        //split(x, xs);\n        //xs[1] = (double)(2.7182818284590452353602874713526625L - xs[0]);\n        //xs[0] = 2.71827697753906250000;\n        //xs[1] = 4.85091998273542816811e-06;\n        //xs[0] = Double.longBitsToDouble(0x4005bf0800000000L);\n        //xs[1] = Double.longBitsToDouble(0x3ed458a2bb4a9b00L);\n\n        /* E */\n        xs[0] = 2.718281828459045;\n        xs[1] = 1.4456468917292502E-16;\n\n        split(1.0, ys);\n\n        while (p > 0) {\n            if ((p & 1) != 0) {\n                quadMult(ys, xs, as);\n                ys[0] = as[0]; ys[1] = as[1];\n            }\n\n            quadMult(xs, xs, as);\n            xs[0] = as[0]; xs[1] = as[1];\n\n            p >>= 1;\n        }\n\n        if (result != null) {\n            result[0] = ys[0];\n            result[1] = ys[1];\n\n            resplit(result);\n        }\n\n        return ys[0] + ys[1];\n    }\n",
+        "begin_line": 1107,
+        "end_line": 1145,
+        "comment": " Compute exp(p) for a integer p in extended precision.\n     * @param p integer whose exponential is requested\n     * @param result placeholder where to put the result in extended precision\n     * @return exp(p) in standard precision (equal to result[0] + result[1])\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.slowLog#1626",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.slowLog(double)",
+        "snippet": "    private static double[] slowLog(double xi) {\n        double x[] = new double[2];\n        double x2[] = new double[2];\n        double y[] = new double[2];\n        double a[] = new double[2];\n\n        split(xi, x);\n\n        /* Set X = (x-1)/(x+1) */\n        x[0] += 1.0;\n        resplit(x);\n        splitReciprocal(x, a);\n        x[0] -= 2.0;\n        resplit(x);\n        splitMult(x, a, y);\n        x[0] = y[0];\n        x[1] = y[1];\n\n        /* Square X -> X2*/\n        splitMult(x, x, x2);\n\n\n        //x[0] -= 1.0;\n        //resplit(x);\n\n        y[0] = LN_SPLIT_COEF[LN_SPLIT_COEF.length-1][0];\n        y[1] = LN_SPLIT_COEF[LN_SPLIT_COEF.length-1][1];\n\n        for (int i = LN_SPLIT_COEF.length-2; i >= 0; i--) {\n            splitMult(y, x2, a);\n            y[0] = a[0];\n            y[1] = a[1];\n            splitAdd(y, LN_SPLIT_COEF[i], a);\n            y[0] = a[0];\n            y[1] = a[1];\n        }\n\n        splitMult(y, x, a);\n        y[0] = a[0];\n        y[1] = a[1];\n\n        return y;\n    }\n",
+        "begin_line": 1626,
+        "end_line": 1668,
+        "comment": " xi in the range of [1, 2].\n     *                                3        5        7\n     *      x+1           /          x        x        x          \\\n     *  ln ----- =   2 *  |  x  +   ----  +  ----  +  ---- + ...  |\n     *      1-x           \\          3        5        7          /\n     *\n     * So, compute a Remez approximation of the following function\n     *\n     *  ln ((sqrt(x)+1)/(1-sqrt(x)))  /  x\n     *\n     * This will be an even function with only positive coefficents.\n     * x is in the range [0 - 1/3].\n     *\n     * Transform xi for input to the above function by setting\n     * x = (xi-1)/(xi+1).   Input to the polynomial is x^2, then\n     * the result is multiplied by x.\n     * @param xi number from which log is requested\n     * @return log(xi)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.slowSin#1676",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.slowSin(double, double[])",
+        "snippet": "    private static double slowSin(final double x, final double result[]) {\n        final double xs[] = new double[2];\n        final double ys[] = new double[2];\n        final double facts[] = new double[2];\n        final double as[] = new double[2];\n        split(x, xs);\n        ys[0] = ys[1] = 0.0;\n\n        for (int i = 19; i >= 0; i--) {\n            splitMult(xs, ys, as);\n            ys[0] = as[0]; ys[1] = as[1];\n\n            if ( (i & 1) == 0) {\n                continue;\n            }\n\n            split(FACT[i], as);\n            splitReciprocal(as, facts);\n\n            if ( (i & 2) != 0 ) {\n                facts[0] = -facts[0];\n                facts[1] = -facts[1];\n            }\n\n            splitAdd(ys, facts, as);\n            ys[0] = as[0]; ys[1] = as[1];\n        }\n\n        if (result != null) {\n            result[0] = ys[0];\n            result[1] = ys[1];\n        }\n\n        return ys[0] + ys[1];\n    }\n",
+        "begin_line": 1676,
+        "end_line": 1710,
+        "comment": "\n     * For x between 0 and pi/4 compute sine.\n     * @param x number from which sine is requested\n     * @param result placeholder where to put the result in extended precision\n     * @return sin(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.slowCos#1718",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.slowCos(double, double[])",
+        "snippet": "    private static double slowCos(final double x, final double result[]) {\n\n        final double xs[] = new double[2];\n        final double ys[] = new double[2];\n        final double facts[] = new double[2];\n        final double as[] = new double[2];\n        split(x, xs);\n        ys[0] = ys[1] = 0.0;\n\n        for (int i = 19; i >= 0; i--) {\n            splitMult(xs, ys, as);\n            ys[0] = as[0]; ys[1] = as[1];\n\n            if ( (i & 1) != 0) {\n                continue;\n            }\n\n            split(FACT[i], as);\n            splitReciprocal(as, facts);\n\n            if ( (i & 2) != 0 ) {\n                facts[0] = -facts[0];\n                facts[1] = -facts[1];\n            }\n\n            splitAdd(ys, facts, as);\n            ys[0] = as[0]; ys[1] = as[1];\n        }\n\n        if (result != null) {\n            result[0] = ys[0];\n            result[1] = ys[1];\n        }\n\n        return ys[0] + ys[1];\n    }\n",
+        "begin_line": 1718,
+        "end_line": 1753,
+        "comment": "\n     *  For x between 0 and pi/4 compute cosine\n     * @param x number from which cosine is requested\n     * @param result placeholder where to put the result in extended precision\n     * @return cos(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.buildSinCosTables#1757",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/FastMath.java",
+        "class_name": "org.apache.commons.math.util.FastMath",
+        "signature": "org.apache.commons.math.util.FastMath.buildSinCosTables()",
+        "snippet": "    private static void buildSinCosTables() {\n        final double result[] = new double[2];\n\n        /* Use taylor series for 0 <= x <= 6/8 */\n        for (int i = 0; i < 7; i++) {\n            double x = i / 8.0;\n\n            slowSin(x, result);\n            SINE_TABLE_A[i] = result[0];\n            SINE_TABLE_B[i] = result[1];\n\n            slowCos(x, result);\n            COSINE_TABLE_A[i] = result[0];\n            COSINE_TABLE_B[i] = result[1];\n        }\n\n        /* Use angle addition formula to complete table to 13/8, just beyond pi/2 */\n        for (int i = 7; i < 14; i++) {\n            double xs[] = new double[2];\n            double ys[] = new double[2];\n            double as[] = new double[2];\n            double bs[] = new double[2];\n            double temps[] = new double[2];\n\n            if ( (i & 1) == 0) {\n                // Even, use double angle\n                xs[0] = SINE_TABLE_A[i/2];\n                xs[1] = SINE_TABLE_B[i/2];\n                ys[0] = COSINE_TABLE_A[i/2];\n                ys[1] = COSINE_TABLE_B[i/2];\n\n                /* compute sine */\n                splitMult(xs, ys, result);\n                SINE_TABLE_A[i] = result[0] * 2.0;\n                SINE_TABLE_B[i] = result[1] * 2.0;\n\n                /* Compute cosine */\n                splitMult(ys, ys, as);\n                splitMult(xs, xs, temps);\n                temps[0] = -temps[0];\n                temps[1] = -temps[1];\n                splitAdd(as, temps, result);\n                COSINE_TABLE_A[i] = result[0];\n                COSINE_TABLE_B[i] = result[1];\n            } else {\n                xs[0] = SINE_TABLE_A[i/2];\n                xs[1] = SINE_TABLE_B[i/2];\n                ys[0] = COSINE_TABLE_A[i/2];\n                ys[1] = COSINE_TABLE_B[i/2];\n                as[0] = SINE_TABLE_A[i/2+1];\n                as[1] = SINE_TABLE_B[i/2+1];\n                bs[0] = COSINE_TABLE_A[i/2+1];\n                bs[1] = COSINE_TABLE_B[i/2+1];\n\n                /* compute sine */\n                splitMult(xs, bs, temps);\n                splitMult(ys, as, result);\n                splitAdd(result, temps, result);\n                SINE_TABLE_A[i] = result[0];\n                SINE_TABLE_B[i] = result[1];\n\n                /* Compute cosine */\n                splitMult(ys, bs, result);\n                splitMult(xs, as, temps);\n                temps[0] = -temps[0];\n                temps[1] = -temps[1];\n                splitAdd(result, temps, result);\n                COSINE_TABLE_A[i] = result[0];\n                COSINE_TABLE_B[i] = result[1];\n            }\n        }\n\n        /* Compute tangent = sine/cosine */\n        for (int i = 0; i < 14; i++) {\n            double xs[] = new double[2];\n            double ys[] = new double[2];\n            double as[] = new double[2];\n\n            as[0] = COSINE_TABLE_A[i];\n            as[1] = COSINE_TABLE_B[i];\n\n            splitReciprocal(as, ys);\n\n            xs[0] = SINE_TABLE_A[i];\n            xs[1] = SINE_TABLE_B[i];\n\n            splitMult(xs, ys, as);\n\n            TANGENT_TABLE_A[i] = as[0];\n            TANGENT_TABLE_B[i] = as[1];\n        }\n\n    }\n",
+        "begin_line": 1757,
+        "end_line": 1849,
+        "comment": " Build the sine and cosine tables.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RandomDataImpl.RandomDataImpl#119",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/random/RandomDataImpl.java",
+        "class_name": "org.apache.commons.math.random.RandomDataImpl",
+        "signature": "org.apache.commons.math.random.RandomDataImpl.RandomDataImpl()",
+        "snippet": "    public RandomDataImpl() {\n    }\n",
+        "begin_line": 119,
+        "end_line": 120,
+        "comment": "\n     * Construct a RandomDataImpl.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "NormalDistributionImpl.NormalDistributionImpl#59",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/distribution/NormalDistributionImpl.java",
+        "class_name": "org.apache.commons.math.distribution.NormalDistributionImpl",
+        "signature": "org.apache.commons.math.distribution.NormalDistributionImpl.NormalDistributionImpl(double, double)",
+        "snippet": "    public NormalDistributionImpl(double mean, double sd){\n        this(mean, sd, DEFAULT_INVERSE_ABSOLUTE_ACCURACY);\n    }\n",
+        "begin_line": 59,
+        "end_line": 61,
+        "comment": "\n     * Create a normal distribution using the given mean and standard deviation.\n     *\n     * @param mean Mean for this distribution.\n     * @param sd Standard deviation for this distribution.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "NormalDistributionImpl.NormalDistributionImpl#73",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/distribution/NormalDistributionImpl.java",
+        "class_name": "org.apache.commons.math.distribution.NormalDistributionImpl",
+        "signature": "org.apache.commons.math.distribution.NormalDistributionImpl.NormalDistributionImpl(double, double, double)",
+        "snippet": "    public NormalDistributionImpl(double mean, double sd, double inverseCumAccuracy) {\n        if (sd <= 0) {\n            throw new NotStrictlyPositiveException(LocalizedFormats.STANDARD_DEVIATION, sd);\n        }\n\n        this.mean = mean;\n        standardDeviation = sd;\n        solverAbsoluteAccuracy = inverseCumAccuracy;\n    }\n",
+        "begin_line": 73,
+        "end_line": 81,
+        "comment": "\n     * Create a normal distribution using the given mean, standard deviation and\n     * inverse cumulative distribution accuracy.\n     *\n     * @param mean Mean for this distribution.\n     * @param sd Standard deviation for this distribution.\n     * @param inverseCumAccuracy Inverse cumulative probability accuracy.\n     * @throws NotStrictlyPositiveException if {@code sd <= 0}.\n     * @since 2.1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractDistribution.AbstractDistribution#39",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/distribution/AbstractDistribution.java",
+        "class_name": "org.apache.commons.math.distribution.AbstractDistribution",
+        "signature": "org.apache.commons.math.distribution.AbstractDistribution.AbstractDistribution()",
+        "snippet": "    protected AbstractDistribution() {\n        super();\n    }\n",
+        "begin_line": 39,
+        "end_line": 41,
+        "comment": "\n     * Default constructor.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractContinuousDistribution.AbstractContinuousDistribution#58",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/distribution/AbstractContinuousDistribution.java",
+        "class_name": "org.apache.commons.math.distribution.AbstractContinuousDistribution",
+        "signature": "org.apache.commons.math.distribution.AbstractContinuousDistribution.AbstractContinuousDistribution()",
+        "snippet": "    protected AbstractContinuousDistribution() {}\n",
+        "begin_line": 58,
+        "end_line": 58,
+        "comment": "\n     * Default constructor.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    }
+]

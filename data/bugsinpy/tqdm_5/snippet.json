@@ -1,0 +1,1082 @@
+[
+    {
+        "name": "tqdm._main.cast#9",
+        "src_path": "tqdm/_main.py",
+        "class_name": "tqdm._main",
+        "signature": "tqdm._main.cast(val, typ)",
+        "snippet": "def cast(val, typ):\n    log = logging.getLogger(__name__)\n    log.debug((val, typ))\n    if \" or \" in typ:\n        for t in typ.split(\" or \"):\n            try:\n                return cast(val, t)\n            except TqdmTypeError:\n                pass\n        raise TqdmTypeError(val + ' : ' + typ)\n\n    # sys.stderr.write('\\ndebug | `val:type`: `' + val + ':' + typ + '`.\\n')\n    if typ == 'bool':\n        if (val == 'True') or (val == ''):\n            return True\n        elif val == 'False':\n            return False\n        else:\n            raise TqdmTypeError(val + ' : ' + typ)\n    try:\n        return eval(typ + '(\"' + val + '\")')\n    except:\n        if typ == 'chr':\n            return chr(ord(eval('\"' + val + '\"')))\n        else:\n            raise TqdmTypeError(val + ' : ' + typ)",
+        "begin_line": 9,
+        "end_line": 34,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._main.posix_pipe#37",
+        "src_path": "tqdm/_main.py",
+        "class_name": "tqdm._main",
+        "signature": "tqdm._main.posix_pipe(fin, fout, delim='\\n', buf_size=256, callback=lambda int: None)",
+        "snippet": "def posix_pipe(fin, fout, delim='\\n', buf_size=256,\n               callback=lambda int: None  # pragma: no cover\n               ):\n    \"\"\"\n    Params\n    ------\n    fin  : file with `read(buf_size : int)` method\n    fout  : file with `write` (and optionally `flush`) methods.\n    callback  : function(int), e.g.: `tqdm.update`\n    \"\"\"\n    fp_write = fout.write\n\n    # tmp = ''\n    if not delim:\n        while True:\n            tmp = fin.read(buf_size)\n\n            # flush at EOF\n            if not tmp:\n                getattr(fout, 'flush', lambda: None)()  # pragma: no cover\n                return\n\n            fp_write(tmp)\n            callback(len(tmp))\n        # return\n\n    buf = ''\n    # n = 0\n    while True:\n        tmp = fin.read(buf_size)\n\n        # flush at EOF\n        if not tmp:\n            if buf:\n                fp_write(buf)\n                callback(1 + buf.count(delim))  # n += 1 + buf.count(delim)\n            getattr(fout, 'flush', lambda: None)()  # pragma: no cover\n            return  # n\n\n        while True:\n            try:\n                i = tmp.index(delim)\n            except ValueError:\n                buf += tmp\n                break\n            else:\n                fp_write(buf + tmp[:i + len(delim)])\n                callback(1)  # n += 1\n                buf = ''\n                tmp = tmp[i + len(delim):]",
+        "begin_line": 37,
+        "end_line": 86,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._main.main#117",
+        "src_path": "tqdm/_main.py",
+        "class_name": "tqdm._main",
+        "signature": "tqdm._main.main(fp=sys.stderr)",
+        "snippet": "def main(fp=sys.stderr):\n    \"\"\"\n    Paramters (internal use only)\n    ---------\n    fp  : file-like object for tqdm\n    \"\"\"\n    try:\n        log = sys.argv.index('--log')\n    except ValueError:\n        logLevel = 'INFO'\n    else:\n        # sys.argv.pop(log)\n        # logLevel = sys.argv.pop(log)\n        logLevel = sys.argv[log + 1]\n    logging.basicConfig(\n        level=getattr(logging, logLevel),\n        format=\"%(levelname)s:%(module)s:%(lineno)d:%(message)s\")\n    log = logging.getLogger(__name__)\n\n    d = tqdm.__init__.__doc__ + CLI_EXTRA_DOC\n\n    opt_types = dict(RE_OPTS.findall(d))\n    # opt_types['delim'] = 'chr'\n\n    for o in UNSUPPORTED_OPTS:\n        opt_types.pop(o)\n\n    log.debug(sorted(opt_types.items()))\n\n    # d = RE_OPTS.sub(r'  --\\1=<\\1>  : \\2', d)\n    split = RE_OPTS.split(d)\n    opt_types_desc = zip(split[1::3], split[2::3], split[3::3])\n    d = ''.join('\\n  --{0}=<{0}>  : {1}{2}'.format(*otd)\n                for otd in opt_types_desc if otd[0] not in UNSUPPORTED_OPTS)\n\n    d = \"\"\"Usage:\n  tqdm [--help | options]\n\nOptions:\n  -h, --help     Print this help and exit\n  -v, --version  Print version and exit\n\n\"\"\" + d.strip('\\n') + '\\n'\n\n    # opts = docopt(d, version=__version__)\n    if any(v in sys.argv for v in ('-v', '--version')):\n        sys.stdout.write(__version__ + '\\n')\n        sys.exit(0)\n    elif any(v in sys.argv for v in ('-h', '--help')):\n        sys.stdout.write(d + '\\n')\n        sys.exit(0)\n\n    argv = RE_SHLEX.split(' '.join([\"tqdm\"] + sys.argv[1:]))\n    opts = dict(zip(argv[1::2], argv[2::2]))\n\n    log.debug(opts)\n    opts.pop('log', True)\n\n    tqdm_args = {'file': fp}\n    try:\n        for (o, v) in opts.items():\n            try:\n                tqdm_args[o] = cast(v, opt_types[o])\n            except KeyError as e:\n                raise TqdmKeyError(str(e))\n        log.debug('args:' + str(tqdm_args))\n    except:\n        fp.write('\\nError:\\nUsage:\\n  tqdm [--help | options]\\n')\n        for i in sys.stdin:\n            sys.stdout.write(i)\n        raise\n    else:\n        buf_size = tqdm_args.pop('buf_size', 256)\n        delim = tqdm_args.pop('delim', '\\n')\n        delim_per_char = tqdm_args.pop('bytes', False)\n        if delim_per_char:\n            tqdm_args.setdefault('unit', 'B')\n            tqdm_args.setdefault('unit_scale', True)\n            tqdm_args.setdefault('unit_divisor', 1024)\n            log.debug(tqdm_args)\n            with tqdm(**tqdm_args) as t:\n                posix_pipe(sys.stdin, sys.stdout,\n                           '', buf_size, t.update)\n        elif delim == '\\n':\n            log.debug(tqdm_args)\n            for i in tqdm(sys.stdin, **tqdm_args):\n                sys.stdout.write(i)\n        else:\n            log.debug(tqdm_args)\n            with tqdm(**tqdm_args) as t:\n                posix_pipe(sys.stdin, sys.stdout,\n                           delim, buf_size, t.update)",
+        "begin_line": 117,
+        "end_line": 208,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._monitor.TMonitor.__init__#31",
+        "src_path": "tqdm/_monitor.py",
+        "class_name": "tqdm._monitor.TMonitor",
+        "signature": "tqdm._monitor.TMonitor.__init__(self, tqdm_cls, sleep_interval)",
+        "snippet": "    def __init__(self, tqdm_cls, sleep_interval):\n        Thread.__init__(self)\n        self.daemon = True  # kill thread when main killed (KeyboardInterrupt)\n        self.was_killed = Event()\n        self.woken = 0  # last time woken up, to sync with monitor\n        self.tqdm_cls = tqdm_cls\n        self.sleep_interval = sleep_interval\n        if TMonitor._time is not None:\n            self._time = TMonitor._time\n        else:\n            self._time = time\n        if TMonitor._event is not None:\n            self._event = TMonitor._event\n        else:\n            self._event = Event\n        self.start()",
+        "begin_line": 31,
+        "end_line": 46,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.007042253521126761,
+            "pseudo_dstar_susp": 0.007246376811594203,
+            "pseudo_tarantula_susp": 0.03125,
+            "pseudo_op2_susp": 0.007246376811594203,
+            "pseudo_barinel_susp": 0.03125
+        }
+    },
+    {
+        "name": "tqdm._monitor.TMonitor.exit#48",
+        "src_path": "tqdm/_monitor.py",
+        "class_name": "tqdm._monitor.TMonitor",
+        "signature": "tqdm._monitor.TMonitor.exit(self)",
+        "snippet": "    def exit(self):\n        self.was_killed.set()\n        self.join()\n        return self.report()",
+        "begin_line": 48,
+        "end_line": 51,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.004016064257028112,
+            "pseudo_dstar_susp": 0.004016064257028112,
+            "pseudo_tarantula_susp": 0.004016064257028112,
+            "pseudo_op2_susp": 0.004016064257028112,
+            "pseudo_barinel_susp": 0.004016064257028112
+        }
+    },
+    {
+        "name": "tqdm._monitor.TMonitor.get_instances#53",
+        "src_path": "tqdm/_monitor.py",
+        "class_name": "tqdm._monitor.TMonitor",
+        "signature": "tqdm._monitor.TMonitor.get_instances(self)",
+        "snippet": "    def get_instances(self):\n        # returns a copy of started `tqdm_cls` instances\n        return [i for i in self.tqdm_cls._instances.copy()\n                # Avoid race by checking that the instance started\n                if hasattr(i, 'start_t')]",
+        "begin_line": 53,
+        "end_line": 57,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002066115702479339,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._monitor.TMonitor.run#59",
+        "src_path": "tqdm/_monitor.py",
+        "class_name": "tqdm._monitor.TMonitor",
+        "signature": "tqdm._monitor.TMonitor.run(self)",
+        "snippet": "    def run(self):\n        cur_t = self._time()\n        while True:\n            # After processing and before sleeping, notify that we woke\n            # Need to be done just before sleeping\n            self.woken = cur_t\n            # Sleep some time...\n            self.was_killed.wait(self.sleep_interval)\n            # Quit if killed\n            if self.was_killed.is_set():\n                return\n            # Then monitor!\n            # Acquire lock (to access _instances)\n            with self.tqdm_cls.get_lock():\n                cur_t = self._time()\n                # Check tqdm instances are waiting too long to print\n                instances = self.get_instances()\n                for instance in instances:\n                    # Check event in loop to reduce blocking time on exit\n                    if self.was_killed.is_set():\n                        return\n                    # Only if mininterval > 1 (else iterations are just slow)\n                    # and last refresh exceeded maxinterval\n                    if instance.miniters > 1 and \\\n                            (cur_t - instance.last_print_t) >= \\\n                            instance.maxinterval:\n                        # force bypassing miniters on next iteration\n                        # (dynamic_miniters adjusts mininterval automatically)\n                        instance.miniters = 1\n                        # Refresh now! (works only for manual tqdm)\n                        instance.refresh(nolock=True)\n                if instances != self.get_instances():  # pragma: nocover\n                    warn(\"Set changed size during iteration\" +\n                         \" (see https://github.com/tqdm/tqdm/issues/481)\",\n                         TqdmSynchronisationWarning)",
+        "begin_line": 59,
+        "end_line": 93,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006535947712418301,
+            "pseudo_dstar_susp": 0.007246376811594203,
+            "pseudo_tarantula_susp": 0.00641025641025641,
+            "pseudo_op2_susp": 0.007246376811594203,
+            "pseudo_barinel_susp": 0.00641025641025641
+        }
+    },
+    {
+        "name": "tqdm._monitor.TMonitor.report#95",
+        "src_path": "tqdm/_monitor.py",
+        "class_name": "tqdm._monitor.TMonitor",
+        "signature": "tqdm._monitor.TMonitor.report(self)",
+        "snippet": "    def report(self):\n        return not self.was_killed.is_set()",
+        "begin_line": 95,
+        "end_line": 96,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006535947712418301,
+            "pseudo_dstar_susp": 0.007246376811594203,
+            "pseudo_tarantula_susp": 0.00641025641025641,
+            "pseudo_op2_susp": 0.007246376811594203,
+            "pseudo_barinel_susp": 0.00641025641025641
+        }
+    },
+    {
+        "name": "tqdm._tqdm_pandas.tqdm_pandas#7",
+        "src_path": "tqdm/_tqdm_pandas.py",
+        "class_name": "tqdm._tqdm_pandas",
+        "signature": "tqdm._tqdm_pandas.tqdm_pandas(tclass, *targs, **tkwargs)",
+        "snippet": "def tqdm_pandas(tclass, *targs, **tkwargs):\n    \"\"\"\n    Registers the given `tqdm` instance with\n    `pandas.core.groupby.DataFrameGroupBy.progress_apply`.\n    It will even close() the `tqdm` instance upon completion.\n\n    Parameters\n    ----------\n    tclass  : tqdm class you want to use (eg, tqdm, tqdm_notebook, etc)\n    targs and tkwargs  : arguments for the tqdm instance\n\n    Examples\n    --------\n    >>> import pandas as pd\n    >>> import numpy as np\n    >>> from tqdm import tqdm, tqdm_pandas\n    >>>\n    >>> df = pd.DataFrame(np.random.randint(0, 100, (100000, 6)))\n    >>> tqdm_pandas(tqdm, leave=True)  # can use tqdm_gui, optional kwargs, etc\n    >>> # Now you can use `progress_apply` instead of `apply`\n    >>> df.groupby(0).progress_apply(lambda x: x**2)\n\n    References\n    ----------\n    https://stackoverflow.com/questions/18603270/\n    progress-indicator-during-pandas-operations-python\n    \"\"\"\n    from tqdm import TqdmDeprecationWarning\n\n    if isinstance(tclass, type) or (getattr(tclass, '__name__', '').startswith(\n            'tqdm_')):  # delayed adapter case\n        TqdmDeprecationWarning(\"\"\"\\\nPlease use `tqdm.pandas(...)` instead of `tqdm_pandas(tqdm, ...)`.\n\"\"\", fp_write=getattr(tkwargs.get('file', None), 'write', sys.stderr.write))\n        tclass.pandas(*targs, **tkwargs)\n    else:\n        TqdmDeprecationWarning(\"\"\"\\\nPlease use `tqdm.pandas(...)` instead of `tqdm_pandas(tqdm(...))`.\n\"\"\", fp_write=getattr(tclass.fp, 'write', sys.stderr.write))\n        type(tclass).pandas(deprecated_t=tclass)",
+        "begin_line": 7,
+        "end_line": 46,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.125,
+            "pseudo_dstar_susp": 0.008264462809917356,
+            "pseudo_tarantula_susp": 0.16666666666666666,
+            "pseudo_op2_susp": 0.008264462809917356,
+            "pseudo_barinel_susp": 0.16666666666666666
+        }
+    },
+    {
+        "name": "tqdm._tqdm.TqdmWarning.__init__#49",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.TqdmWarning",
+        "signature": "tqdm._tqdm.TqdmWarning.__init__(self, msg, fp_write=None, *a, **k)",
+        "snippet": "    def __init__(self, msg, fp_write=None, *a, **k):\n        if fp_write is not None:\n            fp_write(\"\\n\" + self.__class__.__name__ + \": \" +\n                     str(msg).rstrip() + '\\n')\n        else:\n            super(TqdmWarning, self).__init__(msg, *a, **k)",
+        "begin_line": 49,
+        "end_line": 54,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.058823529411764705,
+            "pseudo_dstar_susp": 0.007936507936507936,
+            "pseudo_tarantula_susp": 0.0625,
+            "pseudo_op2_susp": 0.007936507936507936,
+            "pseudo_barinel_susp": 0.0625
+        }
+    },
+    {
+        "name": "tqdm._tqdm.TqdmDefaultWriteLock.acquire#97",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.TqdmDefaultWriteLock",
+        "signature": "tqdm._tqdm.TqdmDefaultWriteLock.acquire(self)",
+        "snippet": "    def acquire(self):\n        for lock in self.locks:\n            lock.acquire()",
+        "begin_line": 97,
+        "end_line": 99,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006060606060606061,
+            "pseudo_dstar_susp": 0.006666666666666667,
+            "pseudo_tarantula_susp": 0.005952380952380952,
+            "pseudo_op2_susp": 0.006666666666666667,
+            "pseudo_barinel_susp": 0.005952380952380952
+        }
+    },
+    {
+        "name": "tqdm._tqdm.TqdmDefaultWriteLock.release#101",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.TqdmDefaultWriteLock",
+        "signature": "tqdm._tqdm.TqdmDefaultWriteLock.release(self)",
+        "snippet": "    def release(self):\n        for lock in self.locks[::-1]:  # Release in inverse order of acquisition\n            lock.release()",
+        "begin_line": 101,
+        "end_line": 103,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006060606060606061,
+            "pseudo_dstar_susp": 0.006666666666666667,
+            "pseudo_tarantula_susp": 0.005952380952380952,
+            "pseudo_op2_susp": 0.006666666666666667,
+            "pseudo_barinel_susp": 0.005952380952380952
+        }
+    },
+    {
+        "name": "tqdm._tqdm.TqdmDefaultWriteLock.__enter__#105",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.TqdmDefaultWriteLock",
+        "signature": "tqdm._tqdm.TqdmDefaultWriteLock.__enter__(self)",
+        "snippet": "    def __enter__(self):\n        self.acquire()",
+        "begin_line": 105,
+        "end_line": 106,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006060606060606061,
+            "pseudo_dstar_susp": 0.006666666666666667,
+            "pseudo_tarantula_susp": 0.005952380952380952,
+            "pseudo_op2_susp": 0.006666666666666667,
+            "pseudo_barinel_susp": 0.005952380952380952
+        }
+    },
+    {
+        "name": "tqdm._tqdm.TqdmDefaultWriteLock.__exit__#108",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.TqdmDefaultWriteLock",
+        "signature": "tqdm._tqdm.TqdmDefaultWriteLock.__exit__(self, *exc)",
+        "snippet": "    def __exit__(self, *exc):\n        self.release()",
+        "begin_line": 108,
+        "end_line": 109,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.006060606060606061,
+            "pseudo_dstar_susp": 0.006666666666666667,
+            "pseudo_tarantula_susp": 0.005952380952380952,
+            "pseudo_op2_susp": 0.006666666666666667,
+            "pseudo_barinel_susp": 0.005952380952380952
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.format_sizeof#124",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.format_sizeof(num, suffix='', divisor=1000)",
+        "snippet": "    def format_sizeof(num, suffix='', divisor=1000):\n        \"\"\"\n        Formats a number (greater than unity) with SI Order of Magnitude\n        prefixes.\n\n        Parameters\n        ----------\n        num  : float\n            Number ( >= 1) to format.\n        suffix  : str, optional\n            Post-postfix [default: ''].\n        divisor  : float, optionl\n            Divisor between prefixes [default: 1000].\n\n        Returns\n        -------\n        out  : str\n            Number with Order of Magnitude SI unit postfix.\n        \"\"\"\n        for unit in ['', 'k', 'M', 'G', 'T', 'P', 'E', 'Z']:\n            if abs(num) < 999.95:\n                if abs(num) < 99.95:\n                    if abs(num) < 9.995:\n                        return '{0:1.2f}'.format(num) + unit + suffix\n                    return '{0:2.1f}'.format(num) + unit + suffix\n                return '{0:3.0f}'.format(num) + unit + suffix\n            num /= divisor\n        return '{0:3.1f}Y'.format(num) + suffix",
+        "begin_line": 124,
+        "end_line": 151,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.format_interval#154",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.format_interval(t)",
+        "snippet": "    def format_interval(t):\n        \"\"\"\n        Formats a number of seconds as a clock time, [H:]MM:SS\n\n        Parameters\n        ----------\n        t  : int\n            Number of seconds.\n        Returns\n        -------\n        out  : str\n            [H:]MM:SS\n        \"\"\"\n        mins, s = divmod(int(t), 60)\n        h, m = divmod(mins, 60)\n        if h:\n            return '{0:d}:{1:02d}:{2:02d}'.format(h, m, s)\n        else:\n            return '{0:02d}:{1:02d}'.format(m, s)",
+        "begin_line": 154,
+        "end_line": 172,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.008771929824561403,
+            "pseudo_dstar_susp": 0.01020408163265306,
+            "pseudo_tarantula_susp": 0.008,
+            "pseudo_op2_susp": 0.01020408163265306,
+            "pseudo_barinel_susp": 0.008
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.status_printer#175",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.status_printer(file)",
+        "snippet": "    def status_printer(file):\n        \"\"\"\n        Manage the printing and in-place updating of a line of characters.\n        Note that if the string is longer than a line, then in-place\n        updating may not work (it will print a new line at each refresh).\n        \"\"\"\n        fp = file\n        fp_flush = getattr(fp, 'flush', lambda: None)  # pragma: no cover\n\n        def fp_write(s):\n            fp.write(_unicode(s))\n            fp_flush()\n\n        last_len = [0]\n\n        def print_status(s):\n            len_s = len(s)\n            fp_write('\\r' + s + (' ' * max(last_len[0] - len_s, 0)))\n            last_len[0] = len_s\n\n        return print_status",
+        "begin_line": 175,
+        "end_line": 195,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.016666666666666666,
+            "pseudo_dstar_susp": 0.022727272727272728,
+            "pseudo_tarantula_susp": 0.014285714285714285,
+            "pseudo_op2_susp": 0.022727272727272728,
+            "pseudo_barinel_susp": 0.014285714285714285
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.fp_write#184",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.fp_write(s)",
+        "snippet": "        def fp_write(s):\n            fp.write(_unicode(s))\n            fp_flush()",
+        "begin_line": 184,
+        "end_line": 186,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.045454545454545456,
+            "pseudo_dstar_susp": 0.2,
+            "pseudo_tarantula_susp": 0.014285714285714285,
+            "pseudo_op2_susp": 0.2,
+            "pseudo_barinel_susp": 0.014285714285714285
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.print_status#190",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.print_status(s)",
+        "snippet": "        def print_status(s):\n            len_s = len(s)\n            fp_write('\\r' + s + (' ' * max(last_len[0] - len_s, 0)))\n            last_len[0] = len_s",
+        "begin_line": 190,
+        "end_line": 193,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.045454545454545456,
+            "pseudo_dstar_susp": 0.2,
+            "pseudo_tarantula_susp": 0.014285714285714285,
+            "pseudo_op2_susp": 0.2,
+            "pseudo_barinel_susp": 0.014285714285714285
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.format_meter#198",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.format_meter(n, total, elapsed, ncols=None, prefix='', ascii=False, unit='it', unit_scale=False, rate=None, bar_format=None, postfix=None, unit_divisor=1000)",
+        "snippet": "    def format_meter(n, total, elapsed, ncols=None, prefix='', ascii=False,\n                     unit='it', unit_scale=False, rate=None, bar_format=None,\n                     postfix=None, unit_divisor=1000):\n        \"\"\"\n        Return a string-based progress bar given some parameters\n\n        Parameters\n        ----------\n        n  : int\n            Number of finished iterations.\n        total  : int\n            The expected total number of iterations. If meaningless (), only\n            basic progress statistics are displayed (no ETA).\n        elapsed  : float\n            Number of seconds passed since start.\n        ncols  : int, optional\n            The width of the entire output message. If specified,\n            dynamically resizes the progress meter to stay within this bound\n            [default: None]. The fallback meter width is 10 for the progress\n            bar + no limit for the iterations counter and statistics. If 0,\n            will not print any meter (only stats).\n        prefix  : str, optional\n            Prefix message (included in total width) [default: ''].\n            Use as {desc} in bar_format string.\n        ascii  : bool, optional\n            If not set, use unicode (smooth blocks) to fill the meter\n            [default: False]. The fallback is to use ASCII characters\n            (1-9 #).\n        unit  : str, optional\n            The iteration unit [default: 'it'].\n        unit_scale  : bool or int or float, optional\n            If 1 or True, the number of iterations will be printed with an\n            appropriate SI metric prefix (k = 10^3, M = 10^6, etc.)\n            [default: False]. If any other non-zero number, will scale\n            `total` and `n`.\n        rate  : float, optional\n            Manual override for iteration rate.\n            If [default: None], uses n/elapsed.\n        bar_format  : str, optional\n            Specify a custom bar string formatting. May impact performance.\n            [default: '{l_bar}{bar}{r_bar}'], where\n            l_bar='{desc}: {percentage:3.0f}%|' and\n            r_bar='| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, '\n              '{rate_fmt}{postfix}]'\n            Possible vars: l_bar, bar, r_bar, n, n_fmt, total, total_fmt,\n              percentage, rate, rate_fmt, rate_noinv, rate_noinv_fmt,\n              rate_inv, rate_inv_fmt, elapsed, remaining, desc, postfix.\n            Note that a trailing \": \" is automatically removed after {desc}\n            if the latter is empty.\n        postfix  : *, optional\n            Similar to `prefix`, but placed at the end\n            (e.g. for additional stats).\n            Note: postfix is usually a string (not a dict) for this method,\n            and will if possible be set to postfix = ', ' + postfix.\n            However other types are supported (#382).\n        unit_divisor  : float, optional\n            [default: 1000], ignored unless `unit_scale` is True.\n\n        Returns\n        -------\n        out  : Formatted meter and stats, ready to display.\n        \"\"\"\n\n        # sanity check: total\n        if total and n > total:\n            total = None\n\n        # apply custom scale if necessary\n        if unit_scale and unit_scale not in (True, 1):\n            total *= unit_scale\n            n *= unit_scale\n            unit_scale = False\n\n        format_interval = tqdm.format_interval\n        elapsed_str = format_interval(elapsed)\n\n        # if unspecified, attempt to use rate = average speed\n        # (we allow manual override since predicting time is an arcane art)\n        if rate is None and elapsed:\n            rate = n / elapsed\n        inv_rate = 1 / rate if rate else None\n        format_sizeof = tqdm.format_sizeof\n        rate_noinv_fmt = ((format_sizeof(rate) if unit_scale else\n                           '{0:5.2f}'.format(rate))\n                          if rate else '?') + unit + '/s'\n        rate_inv_fmt = ((format_sizeof(inv_rate) if unit_scale else\n                         '{0:5.2f}'.format(inv_rate))\n                        if inv_rate else '?') + 's/' + unit\n        rate_fmt = rate_inv_fmt if inv_rate and inv_rate > 1 else rate_noinv_fmt\n\n        if unit_scale:\n            n_fmt = format_sizeof(n, divisor=unit_divisor)\n            total_fmt = format_sizeof(total, divisor=unit_divisor) \\\n                if total else None\n        else:\n            n_fmt = str(n)\n            total_fmt = str(total)\n\n        try:\n            postfix = ', ' + postfix if postfix else ''\n        except TypeError:\n            pass\n\n        # total is known: we can predict some stats\n        if total:\n            # fractional and percentage progress\n            frac = n / total\n            percentage = frac * 100\n\n            remaining_str = format_interval((total - n) / rate) \\\n                if rate else '?'\n\n            # format the stats displayed to the left and right sides of the bar\n            if prefix:\n                # old prefix setup work around\n                bool_prefix_colon_already = (prefix[-2:] == \": \")\n                l_bar = prefix if bool_prefix_colon_already else prefix + \": \"\n            else:\n                l_bar = ''\n            l_bar += '{0:3.0f}%|'.format(percentage)\n            r_bar = '| {0}/{1} [{2}<{3}, {4}{5}]'.format(\n                n_fmt, total_fmt, elapsed_str, remaining_str, rate_fmt, postfix)\n\n            if ncols == 0:\n                return l_bar[:-1] + r_bar[1:]\n\n            if bar_format:\n                # Custom bar formatting\n                # Populate a dict with all available progress indicators\n                bar_args = {'n': n,\n                            'n_fmt': n_fmt,\n                            'total': total,\n                            'total_fmt': total_fmt,\n                            'percentage': percentage,\n                            'rate': inv_rate if inv_rate and inv_rate > 1\n                            else rate,\n                            'rate_fmt': rate_fmt,\n                            'rate_noinv': rate,\n                            'rate_noinv_fmt': rate_noinv_fmt,\n                            'rate_inv': inv_rate,\n                            'rate_inv_fmt': rate_inv_fmt,\n                            'elapsed': elapsed_str,\n                            'remaining': remaining_str,\n                            'l_bar': l_bar,\n                            'r_bar': r_bar,\n                            'desc': prefix or '',\n                            'postfix': postfix,\n                            # 'bar': full_bar  # replaced by procedure below\n                            }\n\n                # auto-remove colon for empty `desc`\n                if not prefix:\n                    bar_format = bar_format.replace(\"{desc}: \", '')\n\n                # Interpolate supplied bar format with the dict\n                if '{bar}' in bar_format:\n                    # Format left/right sides of the bar, and format the bar\n                    # later in the remaining space (avoid breaking display)\n                    l_bar_user, r_bar_user = bar_format.split('{bar}')\n                    l_bar = l_bar_user.format(**bar_args)\n                    r_bar = r_bar_user.format(**bar_args)\n                else:\n                    # Else no progress bar, we can just format and return\n                    return bar_format.format(**bar_args)\n\n            # Formatting progress bar\n            # space available for bar's display\n            N_BARS = max(1, ncols - len(l_bar) - len(r_bar)) if ncols \\\n                else 10\n\n            # format bar depending on availability of unicode/ascii chars\n            if ascii:\n                bar_length, frac_bar_length = divmod(\n                    int(frac * N_BARS * 10), 10)\n\n                bar = '#' * bar_length\n                frac_bar = chr(48 + frac_bar_length) if frac_bar_length \\\n                    else ' '\n\n            else:\n                bar_length, frac_bar_length = divmod(int(frac * N_BARS * 8), 8)\n\n                bar = _unich(0x2588) * bar_length\n                frac_bar = _unich(0x2590 - frac_bar_length) \\\n                    if frac_bar_length else ' '\n\n            # whitespace padding\n            if bar_length < N_BARS:\n                full_bar = bar + frac_bar + \\\n                    ' ' * max(N_BARS - bar_length - 1, 0)\n            else:\n                full_bar = bar + \\\n                    ' ' * max(N_BARS - bar_length, 0)\n\n            # Piece together the bar parts\n            return l_bar + full_bar + r_bar\n\n        # no total: no progressbar, ETA, just progress stats\n        else:\n            return ((prefix + \": \") if prefix else '') + \\\n                '{0}{1} [{2}, {3}{4}]'.format(\n                    n_fmt, unit, elapsed_str, rate_fmt, postfix)",
+        "begin_line": 198,
+        "end_line": 399,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.07692307692307693,
+            "pseudo_dstar_susp": 0.1111111111111111,
+            "pseudo_tarantula_susp": 0.05,
+            "pseudo_op2_susp": 0.1111111111111111,
+            "pseudo_barinel_susp": 0.05
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__new__#401",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__new__(cls, *args, **kwargs)",
+        "snippet": "    def __new__(cls, *args, **kwargs):\n        # Create a new instance\n        instance = object.__new__(cls)\n        # Add to the list of instances\n        if \"_instances\" not in cls.__dict__:\n            cls._instances = WeakSet()\n        if \"_lock\" not in cls.__dict__:\n            cls._lock = TqdmDefaultWriteLock()\n        with cls._lock:\n            cls._instances.add(instance)\n        # Create the monitoring thread\n        if cls.monitor_interval and (cls.monitor is None or not\n                                     cls.monitor.report()):\n            try:\n                cls.monitor = TMonitor(cls, cls.monitor_interval)\n            except Exception as e:  # pragma: nocover\n                warn(\"tqdm:disabling monitor support\"\n                     \" (monitor_interval = 0) due to:\\n\" + str(e),\n                     TqdmMonitorWarning)\n                cls.monitor_interval = 0\n        # Return the instance\n        return instance",
+        "begin_line": 401,
+        "end_line": 422,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.008,
+            "pseudo_dstar_susp": 0.009174311926605505,
+            "pseudo_tarantula_susp": 0.0072992700729927005,
+            "pseudo_op2_susp": 0.009174311926605505,
+            "pseudo_barinel_susp": 0.0072992700729927005
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm._get_free_pos#425",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm._get_free_pos(cls, instance=None)",
+        "snippet": "    def _get_free_pos(cls, instance=None):\n        \"\"\"Skips specified instance\"\"\"\n        positions = set(abs(inst.pos) for inst in cls._instances\n                        if inst is not instance and hasattr(inst, \"pos\"))\n        return min(set(range(len(positions) + 1)).difference(positions))",
+        "begin_line": 425,
+        "end_line": 429,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.041666666666666664,
+            "pseudo_dstar_susp": 0.14285714285714285,
+            "pseudo_tarantula_susp": 0.0072992700729927005,
+            "pseudo_op2_susp": 0.14285714285714285,
+            "pseudo_barinel_susp": 0.0072992700729927005
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm._decr_instances#432",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm._decr_instances(cls, instance)",
+        "snippet": "    def _decr_instances(cls, instance):\n        \"\"\"\n        Remove from list and reposition other bars\n        so that newer bars won't overlap previous bars\n        \"\"\"\n        with cls._lock:\n            try:\n                cls._instances.remove(instance)\n            except KeyError:\n                if not instance.gui:  # pragma: no cover\n                    raise\n            else:\n                for inst in cls._instances:\n                    # negative `pos` means fixed\n                    if inst.pos > abs(instance.pos):\n                        inst.pos -= 1\n                        # TODO: check this doesn't overwrite another fixed bar\n        # Kill monitor if no instances are left\n        if not cls._instances and cls.monitor:\n            try:\n                cls.monitor.exit()\n                del cls.monitor\n            except AttributeError:  # pragma: nocover\n                pass\n            else:\n                cls.monitor = None",
+        "begin_line": 432,
+        "end_line": 457,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.06666666666666667,
+            "pseudo_dstar_susp": 0.00625,
+            "pseudo_tarantula_susp": 0.16666666666666666,
+            "pseudo_op2_susp": 0.00625,
+            "pseudo_barinel_susp": 0.16666666666666666
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.write#460",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.write(cls, s, file=None, end='\\n', nolock=False)",
+        "snippet": "    def write(cls, s, file=None, end=\"\\n\", nolock=False):\n        \"\"\"\n        Print a message via tqdm (without overlap with bars)\n        \"\"\"\n        fp = file if file is not None else sys.stdout\n        with cls.external_write_mode(file=file, nolock=nolock):\n            # Write the message\n            fp.write(s)\n            fp.write(end)",
+        "begin_line": 460,
+        "end_line": 468,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002066115702479339,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.external_write_mode#472",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.external_write_mode(cls, file=None, nolock=False)",
+        "snippet": "    def external_write_mode(cls, file=None, nolock=False):\n        \"\"\"\n        Disable tqdm within context and refresh tqdm when exits.\n        Useful when writing to standard output stream\n        \"\"\"\n        fp = file if file is not None else sys.stdout\n\n        if not nolock:\n            cls._lock.acquire()\n        # Clear all bars\n        inst_cleared = []\n        for inst in getattr(cls, '_instances', []):\n            # Clear instance if in the target output file\n            # or if write output + tqdm output are both either\n            # sys.stdout or sys.stderr (because both are mixed in terminal)\n            if hasattr(inst, \"start_t\") and (inst.fp == fp or all(\n                    f in (sys.stdout, sys.stderr) for f in (fp, inst.fp))):\n                inst.clear(nolock=True)\n                inst_cleared.append(inst)\n        yield\n        # Force refresh display of bars we cleared\n        for inst in inst_cleared:\n            inst.refresh(nolock=True)\n        if not nolock:\n            cls._lock.release()",
+        "begin_line": 472,
+        "end_line": 496,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002066115702479339,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.set_lock#499",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.set_lock(cls, lock)",
+        "snippet": "    def set_lock(cls, lock):\n        cls._lock = lock",
+        "begin_line": 499,
+        "end_line": 500,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.get_lock#503",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.get_lock(cls)",
+        "snippet": "    def get_lock(cls):\n        return cls._lock",
+        "begin_line": 503,
+        "end_line": 504,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002066115702479339,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.pandas#507",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.pandas(tclass, *targs, **tkwargs)",
+        "snippet": "    def pandas(tclass, *targs, **tkwargs):\n        \"\"\"\n        Registers the given `tqdm` class with\n            pandas.core.\n            ( frame.DataFrame\n            | series.Series\n            | groupby.DataFrameGroupBy\n            | groupby.SeriesGroupBy\n            ).progress_apply\n\n        A new instance will be create every time `progress_apply` is called,\n        and each instance will automatically close() upon completion.\n\n        Parameters\n        ----------\n        targs, tkwargs  : arguments for the tqdm instance\n\n        Examples\n        --------\n        >>> import pandas as pd\n        >>> import numpy as np\n        >>> from tqdm import tqdm, tqdm_gui\n        >>>\n        >>> df = pd.DataFrame(np.random.randint(0, 100, (100000, 6)))\n        >>> tqdm.pandas(ncols=50)  # can use tqdm_gui, optional kwargs, etc\n        >>> # Now you can use `progress_apply` instead of `apply`\n        >>> df.groupby(0).progress_apply(lambda x: x**2)\n\n        References\n        ----------\n        https://stackoverflow.com/questions/18603270/\n        progress-indicator-during-pandas-operations-python\n        \"\"\"\n        from pandas.core.frame import DataFrame\n        from pandas.core.series import Series\n        from pandas import Panel\n        try:\n            # pandas>=0.18.0\n            from pandas.core.window import _Rolling_and_Expanding\n        except ImportError:  # pragma: no cover\n            _Rolling_and_Expanding = None\n        try:\n            # pandas>=0.23.0\n            from pandas.core.groupby.groupby import DataFrameGroupBy, \\\n                SeriesGroupBy, GroupBy, PanelGroupBy\n        except ImportError:\n            from pandas.core.groupby import DataFrameGroupBy, \\\n                SeriesGroupBy, GroupBy, PanelGroupBy\n\n        deprecated_t = [tkwargs.pop('deprecated_t', None)]\n\n        def inner_generator(df_function='apply'):\n            def inner(df, func, *args, **kwargs):\n                \"\"\"\n                Parameters\n                ----------\n                df  : (DataFrame|Series)[GroupBy]\n                    Data (may be grouped).\n                func  : function\n                    To be applied on the (grouped) data.\n                **kwargs  : optional\n                    Transmitted to `df.apply()`.\n                \"\"\"\n\n                # Precompute total iterations\n                total = tkwargs.pop(\"total\", getattr(df, 'ngroups', None))\n                if total is None:  # not grouped\n                    if df_function == 'applymap':\n                        total = df.size\n                    elif isinstance(df, Series):\n                        total = len(df)\n                    elif _Rolling_and_Expanding is None or \\\n                            not isinstance(df, _Rolling_and_Expanding):\n                        # DataFrame or Panel\n                        axis = kwargs.get('axis', 0)\n                        # when axis=0, total is shape[axis1]\n                        total = df.size // df.shape[axis]\n\n                # Init bar\n                if deprecated_t[0] is not None:\n                    t = deprecated_t[0]\n                    deprecated_t[0] = None\n                else:\n                    t = tclass(*targs, total=total, **tkwargs)\n\n                if len(args) > 0:\n                    # *args intentionally not supported (see #244, #299)\n                    TqdmDeprecationWarning(\n                        \"Except func, normal arguments are intentionally\" +\n                        \" not supported by\" +\n                        \" `(DataFrame|Series|GroupBy).progress_apply`.\" +\n                        \" Use keyword arguments instead.\",\n                        fp_write=getattr(t.fp, 'write', sys.stderr.write))\n\n                # Define bar updating wrapper\n                def wrapper(*args, **kwargs):\n                    # update tbar correctly\n                    # it seems `pandas apply` calls `func` twice\n                    # on the first column/row to decide whether it can\n                    # take a fast or slow code path; so stop when t.total==t.n\n                    t.update(n=1 if not t.total or t.n < t.total else 0)\n                    return func(*args, **kwargs)\n\n                # Apply the provided function (in **kwargs)\n                # on the df using our wrapper (which provides bar updating)\n                result = getattr(df, df_function)(wrapper, **kwargs)\n\n                # Close bar and return pandas calculation result\n                t.close()\n                return result\n\n            return inner\n\n        # Monkeypatch pandas to provide easy methods\n        # Enable custom tqdm progress in pandas!\n        Series.progress_apply = inner_generator()\n        SeriesGroupBy.progress_apply = inner_generator()\n        Series.progress_map = inner_generator('map')\n        SeriesGroupBy.progress_map = inner_generator('map')\n\n        DataFrame.progress_apply = inner_generator()\n        DataFrameGroupBy.progress_apply = inner_generator()\n        DataFrame.progress_applymap = inner_generator('applymap')\n\n        Panel.progress_apply = inner_generator()\n        PanelGroupBy.progress_apply = inner_generator()\n\n        GroupBy.progress_apply = inner_generator()\n        GroupBy.progress_aggregate = inner_generator('aggregate')\n        GroupBy.progress_transform = inner_generator('transform')\n\n        if _Rolling_and_Expanding is not None:  # pragma: no cover\n            _Rolling_and_Expanding.progress_apply = inner_generator()",
+        "begin_line": 507,
+        "end_line": 639,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.5,
+            "pseudo_dstar_susp": 0.5,
+            "pseudo_tarantula_susp": 0.16666666666666666,
+            "pseudo_op2_susp": 0.5,
+            "pseudo_barinel_susp": 0.16666666666666666
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__init__#641",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__init__(self, iterable=None, desc=None, total=None, leave=True, file=None, ncols=None, mininterval=0.1, maxinterval=10.0, miniters=None, ascii=None, disable=False, unit='it', unit_scale=False, dynamic_ncols=False, smoothing=0.3, bar_format=None, initial=0, position=None, postfix=None, unit_divisor=1000, gui=False, **kwargs)",
+        "snippet": "    def __init__(self, iterable=None, desc=None, total=None, leave=True,\n                 file=None, ncols=None, mininterval=0.1, maxinterval=10.0,\n                 miniters=None, ascii=None, disable=False, unit='it',\n                 unit_scale=False, dynamic_ncols=False, smoothing=0.3,\n                 bar_format=None, initial=0, position=None, postfix=None,\n                 unit_divisor=1000, gui=False, **kwargs):\n        \"\"\"\n        Parameters\n        ----------\n        iterable  : iterable, optional\n            Iterable to decorate with a progressbar.\n            Leave blank to manually manage the updates.\n        desc  : str, optional\n            Prefix for the progressbar.\n        total  : int, optional\n            The number of expected iterations. If unspecified,\n            len(iterable) is used if possible. As a last resort, only basic\n            progress statistics are displayed (no ETA, no progressbar).\n            If `gui` is True and this parameter needs subsequent updating,\n            specify an initial arbitrary large positive integer,\n            e.g. int(9e9).\n        leave  : bool, optional\n            If [default: True], keeps all traces of the progressbar\n            upon termination of iteration.\n        file  : `io.TextIOWrapper` or `io.StringIO`, optional\n            Specifies where to output the progress messages\n            (default: sys.stderr). Uses `file.write(str)` and `file.flush()`\n            methods.\n        ncols  : int, optional\n            The width of the entire output message. If specified,\n            dynamically resizes the progressbar to stay within this bound.\n            If unspecified, attempts to use environment width. The\n            fallback is a meter width of 10 and no limit for the counter and\n            statistics. If 0, will not print any meter (only stats).\n        mininterval  : float, optional\n            Minimum progress display update interval, in seconds [default: 0.1].\n        maxinterval  : float, optional\n            Maximum progress display update interval, in seconds [default: 10].\n            Automatically adjusts `miniters` to correspond to `mininterval`\n            after long display update lag. Only works if `dynamic_miniters`\n            or monitor thread is enabled.\n        miniters  : int, optional\n            Minimum progress display update interval, in iterations.\n            If 0 and `dynamic_miniters`, will automatically adjust to equal\n            `mininterval` (more CPU efficient, good for tight loops).\n            If > 0, will skip display of specified number of iterations.\n            Tweak this and `mininterval` to get very efficient loops.\n            If your progress is erratic with both fast and slow iterations\n            (network, skipping items, etc) you should set miniters=1.\n        ascii  : bool, optional\n            If unspecified or False, use unicode (smooth blocks) to fill\n            the meter. The fallback is to use ASCII characters `1-9 #`.\n        disable  : bool, optional\n            Whether to disable the entire progressbar wrapper\n            [default: False]. If set to None, disable on non-TTY.\n        unit  : str, optional\n            String that will be used to define the unit of each iteration\n            [default: it].\n        unit_scale  : bool or int or float, optional\n            If 1 or True, the number of iterations will be reduced/scaled\n            automatically and a metric prefix following the\n            International System of Units standard will be added\n            (kilo, mega, etc.) [default: False]. If any other non-zero\n            number, will scale `total` and `n`.\n        dynamic_ncols  : bool, optional\n            If set, constantly alters `ncols` to the environment (allowing\n            for window resizes) [default: False].\n        smoothing  : float, optional\n            Exponential moving average smoothing factor for speed estimates\n            (ignored in GUI mode). Ranges from 0 (average speed) to 1\n            (current/instantaneous speed) [default: 0.3].\n        bar_format  : str, optional\n            Specify a custom bar string formatting. May impact performance.\n            [default: '{l_bar}{bar}{r_bar}'], where\n            l_bar='{desc}: {percentage:3.0f}%|' and\n            r_bar='| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, '\n              '{rate_fmt}{postfix}]'\n            Possible vars: l_bar, bar, r_bar, n, n_fmt, total, total_fmt,\n              percentage, rate, rate_fmt, rate_noinv, rate_noinv_fmt,\n              rate_inv, rate_inv_fmt, elapsed, remaining, desc, postfix.\n            Note that a trailing \": \" is automatically removed after {desc}\n            if the latter is empty.\n        initial  : int, optional\n            The initial counter value. Useful when restarting a progress\n            bar [default: 0].\n        position  : int, optional\n            Specify the line offset to print this bar (starting from 0)\n            Automatic if unspecified.\n            Useful to manage multiple bars at once (eg, from threads).\n        postfix  : dict or *, optional\n            Specify additional stats to display at the end of the bar.\n            Calls `set_postfix(**postfix)` if possible (dict).\n        unit_divisor  : float, optional\n            [default: 1000], ignored unless `unit_scale` is True.\n        gui  : bool, optional\n            WARNING: internal parameter - do not use.\n            Use tqdm_gui(...) instead. If set, will attempt to use\n            matplotlib animations for a graphical output [default: False].\n\n        Returns\n        -------\n        out  : decorated iterator.\n        \"\"\"\n\n        if file is None:\n            file = sys.stderr\n\n        if disable is None and hasattr(file, \"isatty\") and not file.isatty():\n            disable = True\n\n        if disable:\n            self.iterable = iterable\n            self.disable = disable\n            self.pos = self._get_free_pos(self)\n            self._instances.remove(self)\n            self.n = initial\n            return\n\n        if kwargs:\n            self.disable = True\n            self.pos = self._get_free_pos(self)\n            self._instances.remove(self)\n            raise (TqdmDeprecationWarning(\"\"\"\\\n`nested` is deprecated and automated. Use position instead for manual control.\n\"\"\", fp_write=getattr(file, 'write', sys.stderr.write)) if \"nested\" in kwargs\n                else TqdmKeyError(\"Unknown argument(s): \" + str(kwargs)))\n\n        # Preprocess the arguments\n        if total is None and iterable is not None:\n            try:\n                total = len(iterable)\n            except (TypeError, AttributeError):\n                total = None\n\n        if ((ncols is None) and (file in (sys.stderr, sys.stdout))) or \\\n                dynamic_ncols:  # pragma: no cover\n            if dynamic_ncols:\n                dynamic_ncols = _environ_cols_wrapper()\n                if dynamic_ncols:\n                    ncols = dynamic_ncols(file)\n                # elif ncols is not None:\n                #     ncols = 79\n            else:\n                _dynamic_ncols = _environ_cols_wrapper()\n                if _dynamic_ncols:\n                    ncols = _dynamic_ncols(file)\n                # else:\n                #     ncols = 79\n\n        if miniters is None:\n            miniters = 0\n            dynamic_miniters = True\n        else:\n            dynamic_miniters = False\n\n        if mininterval is None:\n            mininterval = 0\n\n        if maxinterval is None:\n            maxinterval = 0\n\n        if ascii is None:\n            ascii = not _supports_unicode(file)\n\n        if bar_format and not ascii:\n            # Convert bar format into unicode since terminal uses unicode\n            bar_format = _unicode(bar_format)\n\n        if smoothing is None:\n            smoothing = 0\n\n        # Store the arguments\n        self.iterable = iterable\n        self.desc = desc or ''\n        self.total = total\n        self.leave = leave\n        self.fp = file\n        self.ncols = ncols\n        self.mininterval = mininterval\n        self.maxinterval = maxinterval\n        self.miniters = miniters\n        self.dynamic_miniters = dynamic_miniters\n        self.ascii = ascii\n        self.disable = disable\n        self.unit = unit\n        self.unit_scale = unit_scale\n        self.unit_divisor = unit_divisor\n        self.gui = gui\n        self.dynamic_ncols = dynamic_ncols\n        self.smoothing = smoothing\n        self.avg_time = None\n        self._time = time\n        self.bar_format = bar_format\n        self.postfix = None\n        if postfix:\n            try:\n                self.set_postfix(refresh=False, **postfix)\n            except TypeError:\n                self.postfix = postfix\n\n        # Init the iterations counters\n        self.last_print_n = initial\n        self.n = initial\n\n        # if nested, at initial sp() call we replace '\\r' by '\\n' to\n        # not overwrite the outer progress bar\n        with self._lock:\n            if position is None:\n                self.pos = self._get_free_pos(self)\n            else:  # mark fixed positions as negative\n                self.pos = -position\n\n        if not gui:\n            # Initialize the screen printer\n            self.sp = self.status_printer(self.fp)\n            with self._lock:\n                if self.pos:\n                    self.moveto(abs(self.pos))\n                self.sp(self.__repr__(elapsed=0))\n                if self.pos:\n                    self.moveto(-abs(self.pos))\n\n        # Init the time counter\n        self.last_print_t = self._time()\n        # NB: Avoid race conditions by setting start_t at the very end of init\n        self.start_t = self.last_print_t",
+        "begin_line": 641,
+        "end_line": 866,
+        "comment": "",
+        "is_bug": true,
+        "susp": {
+            "pseudo_ochiai_susp": 0.04,
+            "pseudo_dstar_susp": 0.09090909090909091,
+            "pseudo_tarantula_susp": 0.037037037037037035,
+            "pseudo_op2_susp": 0.09090909090909091,
+            "pseudo_barinel_susp": 0.037037037037037035
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__len__#868",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__len__(self)",
+        "snippet": "    def __len__(self):\n        return self.total if self.iterable is None else \\\n            (self.iterable.shape[0] if hasattr(self.iterable, \"shape\")\n             else len(self.iterable) if hasattr(self.iterable, \"__len__\")\n             else getattr(self, \"total\", None))",
+        "begin_line": 868,
+        "end_line": 872,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.037037037037037035,
+            "pseudo_dstar_susp": 0.006134969325153374,
+            "pseudo_tarantula_susp": 0.045454545454545456,
+            "pseudo_op2_susp": 0.006134969325153374,
+            "pseudo_barinel_susp": 0.045454545454545456
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__enter__#874",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__enter__(self)",
+        "snippet": "    def __enter__(self):\n        return self",
+        "begin_line": 874,
+        "end_line": 875,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.005555555555555556,
+            "pseudo_dstar_susp": 0.005555555555555556,
+            "pseudo_tarantula_susp": 0.0056179775280898875,
+            "pseudo_op2_susp": 0.005555555555555556,
+            "pseudo_barinel_susp": 0.0056179775280898875
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__exit__#877",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__exit__(self, *exc)",
+        "snippet": "    def __exit__(self, *exc):\n        self.close()\n        return False",
+        "begin_line": 877,
+        "end_line": 879,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.005555555555555556,
+            "pseudo_dstar_susp": 0.005555555555555556,
+            "pseudo_tarantula_susp": 0.0056179775280898875,
+            "pseudo_op2_susp": 0.005555555555555556,
+            "pseudo_barinel_susp": 0.0056179775280898875
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__del__#881",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__del__(self)",
+        "snippet": "    def __del__(self):\n        self.close()",
+        "begin_line": 881,
+        "end_line": 882,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.003937007874015748,
+            "pseudo_dstar_susp": 0.003937007874015748,
+            "pseudo_tarantula_susp": 0.003937007874015748,
+            "pseudo_op2_susp": 0.003937007874015748,
+            "pseudo_barinel_susp": 0.003937007874015748
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__repr__#884",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__repr__(self, elapsed=None)",
+        "snippet": "    def __repr__(self, elapsed=None):\n        return self.format_meter(\n            self.n, self.total,\n            elapsed if elapsed is not None else self._time() - self.start_t,\n            self.dynamic_ncols(self.fp) if self.dynamic_ncols else self.ncols,\n            self.desc, self.ascii, self.unit,\n            self.unit_scale, 1 / self.avg_time if self.avg_time else None,\n            self.bar_format, self.postfix, self.unit_divisor)",
+        "begin_line": 884,
+        "end_line": 891,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.016666666666666666,
+            "pseudo_dstar_susp": 0.022727272727272728,
+            "pseudo_tarantula_susp": 0.014285714285714285,
+            "pseudo_op2_susp": 0.022727272727272728,
+            "pseudo_barinel_susp": 0.014285714285714285
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm._comparable#894",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm._comparable(self)",
+        "snippet": "    def _comparable(self):\n        return abs(getattr(self, \"pos\", 1 << 31))",
+        "begin_line": 894,
+        "end_line": 895,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.003875968992248062,
+            "pseudo_dstar_susp": 0.003875968992248062,
+            "pseudo_tarantula_susp": 0.003875968992248062,
+            "pseudo_op2_susp": 0.003875968992248062,
+            "pseudo_barinel_susp": 0.003875968992248062
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__hash__#897",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__hash__(self)",
+        "snippet": "    def __hash__(self):\n        return id(self)",
+        "begin_line": 897,
+        "end_line": 898,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.008,
+            "pseudo_dstar_susp": 0.009174311926605505,
+            "pseudo_tarantula_susp": 0.0072992700729927005,
+            "pseudo_op2_susp": 0.009174311926605505,
+            "pseudo_barinel_susp": 0.0072992700729927005
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.__iter__#900",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.__iter__(self)",
+        "snippet": "    def __iter__(self):\n        \"\"\"Backward-compatibility to use: for x in tqdm(iterable)\"\"\"\n\n        # Inlining instance variables as locals (speed optimisation)\n        iterable = self.iterable\n\n        # If the bar is disabled, then just walk the iterable\n        # (note: keep this check outside the loop for performance)\n        if self.disable:\n            for obj in iterable:\n                yield obj\n        else:\n            mininterval = self.mininterval\n            maxinterval = self.maxinterval\n            miniters = self.miniters\n            dynamic_miniters = self.dynamic_miniters\n            last_print_t = self.last_print_t\n            last_print_n = self.last_print_n\n            n = self.n\n            smoothing = self.smoothing\n            avg_time = self.avg_time\n            _time = self._time\n\n            try:\n                sp = self.sp\n            except AttributeError:\n                raise TqdmDeprecationWarning(\"\"\"\\\nPlease use `tqdm_gui(...)` instead of `tqdm(..., gui=True)`\n\"\"\", fp_write=getattr(self.fp, 'write', sys.stderr.write))\n\n            for obj in iterable:\n                yield obj\n                # Update and possibly print the progressbar.\n                # Note: does not call self.update(1) for speed optimisation.\n                n += 1\n                # check counter first to avoid calls to time()\n                if n - last_print_n >= self.miniters:\n                    miniters = self.miniters  # watch monitoring thread changes\n                    delta_t = _time() - last_print_t\n                    if delta_t >= mininterval:\n                        cur_t = _time()\n                        delta_it = n - last_print_n\n                        # EMA (not just overall average)\n                        if smoothing and delta_t and delta_it:\n                            avg_time = delta_t / delta_it \\\n                                if avg_time is None \\\n                                else smoothing * delta_t / delta_it + \\\n                                (1 - smoothing) * avg_time\n\n                        self.n = n\n                        with self._lock:\n                            if self.pos:\n                                self.moveto(abs(self.pos))\n                            # Print bar update\n                            sp(self.__repr__())\n                            if self.pos:\n                                self.moveto(-abs(self.pos))\n\n                        # If no `miniters` was specified, adjust automatically\n                        # to the max iteration rate seen so far between 2 prints\n                        if dynamic_miniters:\n                            if maxinterval and delta_t >= maxinterval:\n                                # Adjust miniters to time interval by rule of 3\n                                if mininterval:\n                                    # Set miniters to correspond to mininterval\n                                    miniters = delta_it * mininterval / delta_t\n                                else:\n                                    # Set miniters to correspond to maxinterval\n                                    miniters = delta_it * maxinterval / delta_t\n                            elif smoothing:\n                                # EMA-weight miniters to converge\n                                # towards the timeframe of mininterval\n                                miniters = smoothing * delta_it * \\\n                                    (mininterval / delta_t\n                                     if mininterval and delta_t else 1) + \\\n                                    (1 - smoothing) * miniters\n                            else:\n                                # Maximum nb of iterations between 2 prints\n                                miniters = max(miniters, delta_it)\n\n                        # Store old values for next call\n                        self.n = self.last_print_n = last_print_n = n\n                        self.last_print_t = last_print_t = cur_t\n                        self.miniters = miniters\n\n            # Closing the progress bar.\n            # Update some internal variables for close().\n            self.last_print_n = last_print_n\n            self.n = n\n            self.miniters = miniters\n            self.close()",
+        "begin_line": 900,
+        "end_line": 990,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.update#992",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.update(self, n=1)",
+        "snippet": "    def update(self, n=1):\n        \"\"\"\n        Manually update the progress bar, useful for streams\n        such as reading files.\n        E.g.:\n        >>> t = tqdm(total=filesize) # Initialise\n        >>> for current_buffer in stream:\n        ...    ...\n        ...    t.update(len(current_buffer))\n        >>> t.close()\n        The last line is highly recommended, but possibly not necessary if\n        `t.update()` will be called in such a way that `filesize` will be\n        exactly reached and printed.\n\n        Parameters\n        ----------\n        n  : int, optional\n            Increment to add to the internal counter of iterations\n            [default: 1].\n        \"\"\"\n        # N.B.: see __iter__() for more comments.\n        if self.disable:\n            return\n\n        if n < 0:\n            raise ValueError(\"n ({0}) cannot be negative\".format(n))\n        self.n += n\n\n        # check counter first to reduce calls to time()\n        if self.n - self.last_print_n >= self.miniters:\n            delta_t = self._time() - self.last_print_t\n            if delta_t >= self.mininterval:\n                cur_t = self._time()\n                delta_it = self.n - self.last_print_n  # >= n\n                # elapsed = cur_t - self.start_t\n                # EMA (not just overall average)\n                if self.smoothing and delta_t and delta_it:\n                    self.avg_time = delta_t / delta_it \\\n                        if self.avg_time is None \\\n                        else self.smoothing * delta_t / delta_it + \\\n                        (1 - self.smoothing) * self.avg_time\n\n                if not hasattr(self, \"sp\"):\n                    raise TqdmDeprecationWarning(\"\"\"\\\nPlease use `tqdm_gui(...)` instead of `tqdm(..., gui=True)`\n\"\"\", fp_write=getattr(self.fp, 'write', sys.stderr.write))\n\n                with self._lock:\n                    if self.pos:\n                        self.moveto(abs(self.pos))\n\n                    # Print bar update\n                    self.sp(self.__repr__())\n\n                    if self.pos:\n                        self.moveto(-abs(self.pos))\n\n                # If no `miniters` was specified, adjust automatically to the\n                # maximum iteration rate seen so far between two prints.\n                # e.g.: After running `tqdm.update(5)`, subsequent\n                # calls to `tqdm.update()` will only cause an update after\n                # at least 5 more iterations.\n                if self.dynamic_miniters:\n                    if self.maxinterval and delta_t >= self.maxinterval:\n                        if self.mininterval:\n                            self.miniters = delta_it * self.mininterval \\\n                                / delta_t\n                        else:\n                            self.miniters = delta_it * self.maxinterval \\\n                                / delta_t\n                    elif self.smoothing:\n                        self.miniters = self.smoothing * delta_it * \\\n                            (self.mininterval / delta_t\n                             if self.mininterval and delta_t\n                             else 1) + \\\n                            (1 - self.smoothing) * self.miniters\n                    else:\n                        self.miniters = max(self.miniters, delta_it)\n\n                # Store old values for next call\n                self.last_print_n = self.n\n                self.last_print_t = cur_t",
+        "begin_line": 992,
+        "end_line": 1073,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.close#1075",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.close(self)",
+        "snippet": "    def close(self):\n        \"\"\"\n        Cleanup and (if leave=False) close the progressbar.\n        \"\"\"\n        if self.disable:\n            return\n\n        # Prevent multiple closures\n        self.disable = True\n\n        # decrement instance pos and remove from internal set\n        pos = abs(self.pos)\n        self._decr_instances(self)\n\n        # GUI mode\n        if not hasattr(self, \"sp\"):\n            return\n\n        # annoyingly, _supports_unicode isn't good enough\n        def fp_write(s):\n            self.fp.write(_unicode(s))\n\n        try:\n            fp_write('')\n        except ValueError as e:\n            if 'closed' in str(e):\n                return\n            raise  # pragma: no cover\n\n        with self._lock:\n            if pos:\n                self.moveto(pos)\n\n            if self.leave:\n                if self.last_print_n < self.n:\n                    # stats for overall rate (no weighted average)\n                    self.avg_time = None\n                    self.sp(self.__repr__())\n                if pos:\n                    self.moveto(-pos)\n                elif not max([abs(getattr(i, \"pos\", 0))\n                              for i in self._instances] + [0]):\n                    # only if not nested (#477)\n                    fp_write('\\n')\n            else:\n                self.sp('')  # clear up last bar\n                if pos:\n                    self.moveto(-pos)\n                else:\n                    fp_write('\\r')",
+        "begin_line": 1075,
+        "end_line": 1124,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.005681818181818182,
+            "pseudo_dstar_susp": 0.006329113924050633,
+            "pseudo_tarantula_susp": 0.0043859649122807015,
+            "pseudo_op2_susp": 0.006329113924050633,
+            "pseudo_barinel_susp": 0.0043859649122807015
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.fp_write#1094",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.fp_write(s)",
+        "snippet": "        def fp_write(s):\n            self.fp.write(_unicode(s))",
+        "begin_line": 1094,
+        "end_line": 1095,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.045454545454545456,
+            "pseudo_dstar_susp": 0.2,
+            "pseudo_tarantula_susp": 0.014285714285714285,
+            "pseudo_op2_susp": 0.2,
+            "pseudo_barinel_susp": 0.014285714285714285
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.unpause#1126",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.unpause(self)",
+        "snippet": "    def unpause(self):\n        \"\"\"\n        Restart tqdm timer from last print time.\n        \"\"\"\n        cur_t = self._time()\n        self.start_t += cur_t - self.last_print_t\n        self.last_print_t = cur_t",
+        "begin_line": 1126,
+        "end_line": 1132,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.set_description#1134",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.set_description(self, desc=None, refresh=True)",
+        "snippet": "    def set_description(self, desc=None, refresh=True):\n        \"\"\"\n        Set/modify description of the progress bar.\n\n        Parameters\n        ----------\n        desc  : str, optional\n        refresh  : bool, optional\n            Forces refresh [default: True].\n        \"\"\"\n        self.desc = desc + ': ' if desc else ''\n        if refresh:\n            self.refresh()",
+        "begin_line": 1134,
+        "end_line": 1146,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.set_description_str#1148",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.set_description_str(self, desc=None, refresh=True)",
+        "snippet": "    def set_description_str(self, desc=None, refresh=True):\n        \"\"\"\n        Set/modify description without ': ' appended.\n        \"\"\"\n        self.desc = desc or ''\n        if refresh:\n            self.refresh()",
+        "begin_line": 1148,
+        "end_line": 1154,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.set_postfix#1156",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.set_postfix(self, ordered_dict=None, refresh=True, **kwargs)",
+        "snippet": "    def set_postfix(self, ordered_dict=None, refresh=True, **kwargs):\n        \"\"\"\n        Set/modify postfix (additional stats)\n        with automatic formatting based on datatype.\n\n        Parameters\n        ----------\n        ordered_dict  : dict or OrderedDict, optional\n        refresh  : bool, optional\n            Forces refresh [default: True].\n        kwargs  : dict, optional\n        \"\"\"\n        # Sort in alphabetical order to be more deterministic\n        postfix = _OrderedDict([] if ordered_dict is None else ordered_dict)\n        for key in sorted(kwargs.keys()):\n            postfix[key] = kwargs[key]\n        # Preprocess stats according to datatype\n        for key in postfix.keys():\n            # Number: limit the length of the string\n            if isinstance(postfix[key], Number):\n                postfix[key] = '{0:2.3g}'.format(postfix[key])\n            # Else for any other type, try to get the string conversion\n            elif not isinstance(postfix[key], _basestring):\n                postfix[key] = str(postfix[key])\n            # Else if it's a string, don't need to preprocess anything\n        # Stitch together to get the final postfix\n        self.postfix = ', '.join(key + '=' + postfix[key].strip()\n                                 for key in postfix.keys())\n        if refresh:\n            self.refresh()",
+        "begin_line": 1156,
+        "end_line": 1185,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.set_postfix_str#1187",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.set_postfix_str(self, s='', refresh=True)",
+        "snippet": "    def set_postfix_str(self, s='', refresh=True):\n        \"\"\"\n        Postfix without dictionary expansion, similar to prefix handling.\n        \"\"\"\n        self.postfix = str(s)\n        if refresh:\n            self.refresh()",
+        "begin_line": 1187,
+        "end_line": 1193,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.moveto#1195",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.moveto(self, n)",
+        "snippet": "    def moveto(self, n):\n        self.fp.write(_unicode('\\n' * n + _term_move_up() * -n))\n        self.fp.flush()",
+        "begin_line": 1195,
+        "end_line": 1197,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.0015625,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.clear#1199",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.clear(self, nolock=False)",
+        "snippet": "    def clear(self, nolock=False):\n        \"\"\"\n        Clear current bar display\n        \"\"\"\n        if self.disable:\n            return\n\n        if not nolock:\n            self._lock.acquire()\n        self.moveto(abs(self.pos))\n        self.sp('')\n        self.fp.write('\\r')  # place cursor back at the beginning of line\n        self.moveto(-abs(self.pos))\n        if not nolock:\n            self._lock.release()",
+        "begin_line": 1199,
+        "end_line": 1213,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.tqdm.refresh#1215",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm.tqdm",
+        "signature": "tqdm._tqdm.tqdm.refresh(self, nolock=False)",
+        "snippet": "    def refresh(self, nolock=False):\n        \"\"\"\n        Force refresh the display of this bar\n        \"\"\"\n        if self.disable:\n            return\n\n        if not nolock:\n            self._lock.acquire()\n        self.moveto(abs(self.pos))\n        self.sp(self.__repr__())\n        self.moveto(-abs(self.pos))\n        if not nolock:\n            self._lock.release()",
+        "begin_line": 1215,
+        "end_line": 1228,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._tqdm.trange#1231",
+        "src_path": "tqdm/_tqdm.py",
+        "class_name": "tqdm._tqdm",
+        "signature": "tqdm._tqdm.trange(*args, **kwargs)",
+        "snippet": "def trange(*args, **kwargs):\n    \"\"\"\n    A shortcut for tqdm(xrange(*args), **kwargs).\n    On Python3+ range is used instead of xrange.\n    \"\"\"\n    return tqdm(_range(*args), **kwargs)",
+        "begin_line": 1231,
+        "end_line": 1236,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.005780346820809248,
+            "pseudo_dstar_susp": 0.005714285714285714,
+            "pseudo_tarantula_susp": 0.027777777777777776,
+            "pseudo_op2_susp": 0.005714285714285714,
+            "pseudo_barinel_susp": 0.027777777777777776
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__lt__#123",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__lt__(self, other)",
+        "snippet": "    def __lt__(self, other):\n        return self._comparable < other._comparable",
+        "begin_line": 123,
+        "end_line": 124,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__le__#126",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__le__(self, other)",
+        "snippet": "    def __le__(self, other):\n        return (self < other) or (self == other)",
+        "begin_line": 126,
+        "end_line": 127,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__eq__#129",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__eq__(self, other)",
+        "snippet": "    def __eq__(self, other):\n        return self._comparable == other._comparable",
+        "begin_line": 129,
+        "end_line": 130,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.003875968992248062,
+            "pseudo_dstar_susp": 0.003875968992248062,
+            "pseudo_tarantula_susp": 0.003875968992248062,
+            "pseudo_op2_susp": 0.003875968992248062,
+            "pseudo_barinel_susp": 0.003875968992248062
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__ne__#132",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__ne__(self, other)",
+        "snippet": "    def __ne__(self, other):\n        return not self == other",
+        "begin_line": 132,
+        "end_line": 133,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__gt__#135",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__gt__(self, other)",
+        "snippet": "    def __gt__(self, other):\n        return not self <= other",
+        "begin_line": 135,
+        "end_line": 136,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils.Comparable.__ge__#138",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils.Comparable",
+        "signature": "tqdm._utils.Comparable.__ge__(self, other)",
+        "snippet": "    def __ge__(self, other):\n        return not self < other",
+        "begin_line": 138,
+        "end_line": 139,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.002770083102493075,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils._is_utf#142",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils",
+        "signature": "tqdm._utils._is_utf(encoding)",
+        "snippet": "def _is_utf(encoding):\n    try:\n        u'\\u2588\\u2589'.encode(encoding)\n    except UnicodeEncodeError:  # pragma: no cover\n        return False\n    except Exception:  # pragma: no cover\n        try:\n            return encoding.lower().startswith('utf-') or ('U8' == encoding)\n        except:\n            return False\n    else:\n        return True",
+        "begin_line": 142,
+        "end_line": 153,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0049504950495049506,
+            "pseudo_dstar_susp": 0.0049504950495049506,
+            "pseudo_tarantula_susp": 0.005,
+            "pseudo_op2_susp": 0.0049504950495049506,
+            "pseudo_barinel_susp": 0.005
+        }
+    },
+    {
+        "name": "tqdm._utils._supports_unicode#156",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils",
+        "signature": "tqdm._utils._supports_unicode(fp)",
+        "snippet": "def _supports_unicode(fp):\n    try:\n        return _is_utf(fp.encoding)\n    except AttributeError:\n        return False",
+        "begin_line": 156,
+        "end_line": 160,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.004761904761904762,
+            "pseudo_dstar_susp": 0.004761904761904762,
+            "pseudo_tarantula_susp": 0.004807692307692308,
+            "pseudo_op2_susp": 0.004761904761904762,
+            "pseudo_barinel_susp": 0.004807692307692308
+        }
+    },
+    {
+        "name": "tqdm._utils._environ_cols_wrapper#163",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils",
+        "signature": "tqdm._utils._environ_cols_wrapper()",
+        "snippet": "def _environ_cols_wrapper():  # pragma: no cover\n    \"\"\"\n    Return a function which gets width and height of console\n    (linux,osx,windows,cygwin).\n    \"\"\"\n    _environ_cols = None\n    if IS_WIN:\n        _environ_cols = _environ_cols_windows\n        if _environ_cols is None:\n            _environ_cols = _environ_cols_tput\n    if IS_NIX:\n        _environ_cols = _environ_cols_linux\n    return _environ_cols",
+        "begin_line": 163,
+        "end_line": 175,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.0018115942028985507,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils._environ_cols_linux#215",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils",
+        "signature": "tqdm._utils._environ_cols_linux(fp)",
+        "snippet": "def _environ_cols_linux(fp):  # pragma: no cover\n\n    try:\n        from termios import TIOCGWINSZ\n        from fcntl import ioctl\n        from array import array\n    except ImportError:\n        return None\n    else:\n        try:\n            return array('h', ioctl(fp, TIOCGWINSZ, '\\0' * 8))[1]\n        except:\n            try:\n                return int(os.environ[\"COLUMNS\"]) - 1\n            except KeyError:\n                return None",
+        "begin_line": 215,
+        "end_line": 230,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.0018115942028985507,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    },
+    {
+        "name": "tqdm._utils._term_move_up#233",
+        "src_path": "tqdm/_utils.py",
+        "class_name": "tqdm._utils",
+        "signature": "tqdm._utils._term_move_up()",
+        "snippet": "def _term_move_up():  # pragma: no cover\n    return '' if (os.name == 'nt') and (colorama is None) else '\\x1b[A'",
+        "begin_line": 233,
+        "end_line": 234,
+        "comment": "",
+        "is_bug": false,
+        "susp": {
+            "pseudo_ochiai_susp": 0.0020876826722338203,
+            "pseudo_dstar_susp": 0.0020876826722338203,
+            "pseudo_tarantula_susp": 0.0020876826722338203,
+            "pseudo_op2_susp": 0.0015625,
+            "pseudo_barinel_susp": 0.0020876826722338203
+        }
+    }
+]

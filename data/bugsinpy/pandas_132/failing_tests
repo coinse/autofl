@@ -1,0 +1,105 @@
+coverage run -m pytest pandas/tests/reductions/test_reductions.py::TestIndexReductions::test_timedelta_ops
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/reductions/test_reductions.py F                             [100%]
+
+=================================== FAILURES ===================================
+____________________ TestIndexReductions.test_timedelta_ops ____________________
+
+self = <pandas.tests.reductions.test_reductions.TestIndexReductions object at 0x7f5b86db89a0>
+
+    def test_timedelta_ops(self):
+        # GH#4984
+        # make sure ops return Timedelta
+        s = Series(
+            [Timestamp("20130101") + timedelta(seconds=i * i) for i in range(10)]
+        )
+        td = s.diff()
+    
+        result = td.mean()
+        expected = to_timedelta(timedelta(seconds=9))
+        assert result == expected
+    
+        result = td.to_frame().mean()
+        assert result[0] == expected
+    
+        result = td.quantile(0.1)
+        expected = Timedelta(np.timedelta64(2600, "ms"))
+        assert result == expected
+    
+        result = td.median()
+        expected = to_timedelta("00:00:09")
+        assert result == expected
+    
+        result = td.to_frame().median()
+        assert result[0] == expected
+    
+        # GH#6462
+        # consistency in returned values for sum
+        result = td.sum()
+        expected = to_timedelta("00:01:21")
+        assert result == expected
+    
+        result = td.to_frame().sum()
+        assert result[0] == expected
+    
+        # std
+        result = td.std()
+        expected = to_timedelta(Series(td.dropna().values).std())
+        assert result == expected
+    
+        result = td.to_frame().std()
+        assert result[0] == expected
+    
+        # invalid ops
+        for op in ["skew", "kurt", "sem", "prod", "var"]:
+            msg = "reduction operation '{}' not allowed for this dtype"
+            with pytest.raises(TypeError, match=msg.format(op)):
+>               getattr(td, op)()
+E               Failed: DID NOT RAISE <class 'TypeError'>
+
+pandas/tests/reductions/test_reductions.py:306: Failed
+=========================== short test summary info ============================
+FAILED pandas/tests/reductions/test_reductions.py::TestIndexReductions::test_timedelta_ops
+============================== 1 failed in 0.42s ===============================
+
+coverage run -m pytest pandas/tests/reductions/test_reductions.py::TestSeriesReductions::test_ops_consistency_on_empty
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 4 items
+
+pandas/tests/reductions/test_reductions.py ...F                          [100%]
+
+=================================== FAILURES ===================================
+___________ TestSeriesReductions.test_ops_consistency_on_empty[var] ____________
+
+self = <pandas.tests.reductions.test_reductions.TestSeriesReductions object at 0x7f60acb7acd0>
+method = 'var'
+
+    @pytest.mark.parametrize("method", ["mean", "median", "std", "var"])
+    def test_ops_consistency_on_empty(self, method):
+    
+        # GH#7869
+        # consistency on empty
+    
+        # float
+        result = getattr(Series(dtype=float), method)()
+        assert pd.isna(result)
+    
+        # timedelta64[ns]
+        tdser = Series([], dtype="m8[ns]")
+        if method == "var":
+            with pytest.raises(TypeError, match="operation 'var' not allowed"):
+>               getattr(tdser, method)()
+E               Failed: DID NOT RAISE <class 'TypeError'>
+
+pandas/tests/reductions/test_reductions.py:645: Failed
+=========================== short test summary info ============================
+FAILED pandas/tests/reductions/test_reductions.py::TestSeriesReductions::test_ops_consistency_on_empty[var]
+========================= 1 failed, 3 passed in 0.37s ==========================

@@ -1,0 +1,1139 @@
+[
+    {
+        "name": "RungeKuttaIntegrator.integrate#95",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/RungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.RungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.RungeKuttaIntegrator.integrate(org.apache.commons.math.ode.FirstOrderDifferentialEquations, double, double[], double, double[])",
+        "snippet": "  public double integrate(final FirstOrderDifferentialEquations equations,\n                          final double t0, final double[] y0,\n                          final double t, final double[] y)\n  throws DerivativeException, IntegratorException {\n\n    sanityChecks(equations, t0, y0, t, y);\n    setEquations(equations);\n    resetEvaluations();\n    final boolean forward = t > t0;\n\n    // create some internal working arrays\n    final int stages = c.length + 1;\n    if (y != y0) {\n      System.arraycopy(y0, 0, y, 0, y0.length);\n    }\n    final double[][] yDotK = new double[stages][];\n    for (int i = 0; i < stages; ++i) {\n      yDotK [i] = new double[y0.length];\n    }\n    final double[] yTmp = new double[y0.length];\n\n    // set up an interpolator sharing the integrator arrays\n    AbstractStepInterpolator interpolator;\n    if (requiresDenseOutput() || (! eventsHandlersManager.isEmpty())) {\n      final RungeKuttaStepInterpolator rki = (RungeKuttaStepInterpolator) prototype.copy();\n      rki.reinitialize(this, yTmp, yDotK, forward);\n      interpolator = rki;\n    } else {\n      interpolator = new DummyStepInterpolator(yTmp, yDotK[stages - 1], forward);\n    }\n    interpolator.storeTime(t0);\n\n    // set up integration control objects\n    stepStart = t0;\n    stepSize  = forward ? step : -step;\n    for (StepHandler handler : stepHandlers) {\n        handler.reset();\n    }\n    CombinedEventsManager manager = addEndTimeChecker(t0, t, eventsHandlersManager);\n    boolean lastStep = false;\n\n    // main integration loop\n    while (!lastStep) {\n\n      interpolator.shift();\n\n      for (boolean loop = true; loop;) {\n\n        // first stage\n        computeDerivatives(stepStart, y, yDotK[0]);\n\n        // next stages\n        for (int k = 1; k < stages; ++k) {\n\n          for (int j = 0; j < y0.length; ++j) {\n            double sum = a[k-1][0] * yDotK[0][j];\n            for (int l = 1; l < k; ++l) {\n              sum += a[k-1][l] * yDotK[l][j];\n            }\n            yTmp[j] = y[j] + stepSize * sum;\n          }\n\n          computeDerivatives(stepStart + c[k-1] * stepSize, yTmp, yDotK[k]);\n\n        }\n\n        // estimate the state at the end of the step\n        for (int j = 0; j < y0.length; ++j) {\n          double sum    = b[0] * yDotK[0][j];\n          for (int l = 1; l < stages; ++l) {\n            sum    += b[l] * yDotK[l][j];\n          }\n          yTmp[j] = y[j] + stepSize * sum;\n        }\n\n        // discrete events handling\n        interpolator.storeTime(stepStart + stepSize);\n        if (manager.evaluateStep(interpolator)) {\n            final double dt = manager.getEventTime() - stepStart;\n            if (Math.abs(dt) <= Math.ulp(stepStart)) {\n                // we cannot simply truncate the step, reject the current computation\n                // and let the loop compute another state with the truncated step.\n                // it is so small (much probably exactly 0 due to limited accuracy)\n                // that the code above would fail handling it.\n                // So we set up an artificial 0 size step by copying states\n                loop     = false;\n            } else {\n                // reject the step to match exactly the next switch time\n                stepSize = dt;\n            }\n        } else {\n          loop = false;\n        }\n\n      }\n\n      // the step has been accepted\n      final double nextStep = stepStart + stepSize;\n      System.arraycopy(yTmp, 0, y, 0, y0.length);\n      manager.stepAccepted(nextStep, y);\n      lastStep = manager.stop();\n\n      // provide the step data to the step handler\n      interpolator.storeTime(nextStep);\n      for (StepHandler handler : stepHandlers) {\n          handler.handleStep(interpolator, lastStep);\n      }\n      stepStart = nextStep;\n\n      if (manager.reset(stepStart, y) && ! lastStep) {\n        // some events handler has triggered changes that\n        // invalidate the derivatives, we need to recompute them\n        computeDerivatives(stepStart, y, yDotK[0]);\n      }\n\n      // make sure step size is set to default before next step\n      stepSize = forward ? step : -step;\n\n    }\n\n    final double stopTime = stepStart;\n    stepStart = Double.NaN;\n    stepSize  = Double.NaN;\n    return stopTime;\n\n  }\n",
+        "begin_line": 95,
+        "end_line": 220,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.AbstractIntegrator": " Perform some sanity checks on the integration parameters.\n     * @param ode differential equations set\n     * @param t0 start time\n     * @param y0 state vector at t0\n     * @param t target time for the integration\n     * @param y placeholder where to put the state vector\n     * @exception IntegratorException if some inconsistency is detected\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EmbeddedRungeKuttaIntegrator.integrate#191",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/EmbeddedRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator.integrate(org.apache.commons.math.ode.FirstOrderDifferentialEquations, double, double[], double, double[])",
+        "snippet": "  @Override\n  public double integrate(final FirstOrderDifferentialEquations equations,\n                          final double t0, final double[] y0,\n                          final double t, final double[] y)\n  throws DerivativeException, IntegratorException {\n\n    sanityChecks(equations, t0, y0, t, y);\n    setEquations(equations);\n    resetEvaluations();\n    final boolean forward = t > t0;\n\n    // create some internal working arrays\n    final int stages = c.length + 1;\n    if (y != y0) {\n      System.arraycopy(y0, 0, y, 0, y0.length);\n    }\n    final double[][] yDotK = new double[stages][y0.length];\n    final double[] yTmp = new double[y0.length];\n\n    // set up an interpolator sharing the integrator arrays\n    AbstractStepInterpolator interpolator;\n    if (requiresDenseOutput() || (! eventsHandlersManager.isEmpty())) {\n      final RungeKuttaStepInterpolator rki = (RungeKuttaStepInterpolator) prototype.copy();\n      rki.reinitialize(this, yTmp, yDotK, forward);\n      interpolator = rki;\n    } else {\n      interpolator = new DummyStepInterpolator(yTmp, yDotK[stages - 1], forward);\n    }\n    interpolator.storeTime(t0);\n\n    // set up integration control objects\n    stepStart         = t0;\n    double  hNew      = 0;\n    boolean firstTime = true;\n    for (StepHandler handler : stepHandlers) {\n        handler.reset();\n    }\n    CombinedEventsManager manager = addEndTimeChecker(t0, t, eventsHandlersManager);\n    boolean lastStep = false;\n\n    // main integration loop\n    while (!lastStep) {\n\n      interpolator.shift();\n\n      double error = 0;\n      for (boolean loop = true; loop;) {\n\n        if (firstTime || !fsal) {\n          // first stage\n          computeDerivatives(stepStart, y, yDotK[0]);\n        }\n\n        if (firstTime) {\n          final double[] scale = new double[y0.length];\n          if (vecAbsoluteTolerance == null) {\n              for (int i = 0; i < scale.length; ++i) {\n                scale[i] = scalAbsoluteTolerance + scalRelativeTolerance * Math.abs(y[i]);\n              }\n            } else {\n              for (int i = 0; i < scale.length; ++i) {\n                scale[i] = vecAbsoluteTolerance[i] + vecRelativeTolerance[i] * Math.abs(y[i]);\n              }\n            }\n          hNew = initializeStep(equations, forward, getOrder(), scale,\n                                stepStart, y, yDotK[0], yTmp, yDotK[1]);\n          firstTime = false;\n        }\n\n        stepSize = hNew;\n\n        // next stages\n        for (int k = 1; k < stages; ++k) {\n\n          for (int j = 0; j < y0.length; ++j) {\n            double sum = a[k-1][0] * yDotK[0][j];\n            for (int l = 1; l < k; ++l) {\n              sum += a[k-1][l] * yDotK[l][j];\n            }\n            yTmp[j] = y[j] + stepSize * sum;\n          }\n\n          computeDerivatives(stepStart + c[k-1] * stepSize, yTmp, yDotK[k]);\n\n        }\n\n        // estimate the state at the end of the step\n        for (int j = 0; j < y0.length; ++j) {\n          double sum    = b[0] * yDotK[0][j];\n          for (int l = 1; l < stages; ++l) {\n            sum    += b[l] * yDotK[l][j];\n          }\n          yTmp[j] = y[j] + stepSize * sum;\n        }\n\n        // estimate the error at the end of the step\n        error = estimateError(yDotK, y, yTmp, stepSize);\n        if (error <= 1.0) {\n\n          // discrete events handling\n          interpolator.storeTime(stepStart + stepSize);\n          if (manager.evaluateStep(interpolator)) {\n              final double dt = manager.getEventTime() - stepStart;\n              if (Math.abs(dt) <= Math.ulp(stepStart)) {\n                  // we cannot simply truncate the step, reject the current computation\n                  // and let the loop compute another state with the truncated step.\n                  // it is so small (much probably exactly 0 due to limited accuracy)\n                  // that the code above would fail handling it.\n                  // So we set up an artificial 0 size step by copying states\n                  loop     = false;\n              } else {\n                  // reject the step to match exactly the next switch time\n                  hNew = dt;\n              }\n          } else {\n            // accept the step\n            loop = false;\n          }\n\n        } else {\n          // reject the step and attempt to reduce error by stepsize control\n          final double factor =\n              Math.min(maxGrowth,\n                       Math.max(minReduction, safety * Math.pow(error, exp)));\n          hNew = filterStep(stepSize * factor, forward, false);\n        }\n\n      }\n\n      // the step has been accepted\n      final double nextStep = stepStart + stepSize;\n      System.arraycopy(yTmp, 0, y, 0, y0.length);\n      manager.stepAccepted(nextStep, y);\n      lastStep = manager.stop();\n\n      // provide the step data to the step handler\n      interpolator.storeTime(nextStep);\n      for (StepHandler handler : stepHandlers) {\n          handler.handleStep(interpolator, lastStep);\n      }\n      stepStart = nextStep;\n\n      if (fsal) {\n        // save the last evaluation for the next step\n        System.arraycopy(yDotK[stages - 1], 0, yDotK[0], 0, y0.length);\n      }\n\n      if (manager.reset(stepStart, y) && ! lastStep) {\n        // some event handler has triggered changes that\n        // invalidate the derivatives, we need to recompute them\n        computeDerivatives(stepStart, y, yDotK[0]);\n      }\n\n      if (! lastStep) {\n        // in some rare cases we may get here with stepSize = 0, for example\n        // when an event occurs at integration start, reducing the first step\n        // to zero; we have to reset the step to some safe non zero value\n          stepSize = filterStep(stepSize, forward, true);\n\n        // stepsize control for next step\n        final double factor = Math.min(maxGrowth,\n                                       Math.max(minReduction,\n                                                safety * Math.pow(error, exp)));\n        final double  scaledH    = stepSize * factor;\n        final double  nextT      = stepStart + scaledH;\n        final boolean nextIsLast = forward ? (nextT >= t) : (nextT <= t);\n        hNew = filterStep(scaledH, forward, nextIsLast);\n      }\n\n    }\n\n    final double stopTime = stepStart;\n    resetInternalState();\n    return stopTime;\n\n  }\n",
+        "begin_line": 191,
+        "end_line": 366,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator": " Perform some sanity checks on the integration parameters.\n   * @param equations differential equations set\n   * @param t0 start time\n   * @param y0 state vector at t0\n   * @param t target time for the integration\n   * @param y placeholder where to put the state vector\n   * @exception IntegratorException if some inconsistency is detected\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.setInitialStepSize#149",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.setInitialStepSize(double)",
+        "snippet": "  public void setInitialStepSize(final double initialStepSize) {\n    if ((initialStepSize < minStep) || (initialStepSize > maxStep)) {\n      initialStep = -1.0;\n    } else {\n      initialStep = initialStepSize;\n    }\n  }\n",
+        "begin_line": 149,
+        "end_line": 155,
+        "comment": " Set the initial step size.\n   * <p>This method allows the user to specify an initial positive\n   * step size instead of letting the integrator guess it by\n   * itself. If this method is not called before integration is\n   * started, the initial step size will be estimated by the\n   * integrator.</p>\n   * @param initialStepSize initial step size to use (must be positive even\n   * for backward integration ; providing a negative value or a value\n   * outside of the min/max step interval will lead the integrator to\n   * ignore the value and compute the initial step size by itself)\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.initializeStep#203",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.initializeStep(org.apache.commons.math.ode.FirstOrderDifferentialEquations, boolean, int, double[], double, double[], double[], double[], double[])",
+        "snippet": "  public double initializeStep(final FirstOrderDifferentialEquations equations,\n                               final boolean forward, final int order, final double[] scale,\n                               final double t0, final double[] y0, final double[] yDot0,\n                               final double[] y1, final double[] yDot1)\n      throws DerivativeException {\n\n    if (initialStep > 0) {\n      // use the user provided value\n      return forward ? initialStep : -initialStep;\n    }\n\n    // very rough first guess : h = 0.01 * ||y/scale|| / ||y'/scale||\n    // this guess will be used to perform an Euler step\n    double ratio;\n    double yOnScale2 = 0;\n    double yDotOnScale2 = 0;\n    for (int j = 0; j < y0.length; ++j) {\n      ratio         = y0[j] / scale[j];\n      yOnScale2    += ratio * ratio;\n      ratio         = yDot0[j] / scale[j];\n      yDotOnScale2 += ratio * ratio;\n    }\n\n    double h = ((yOnScale2 < 1.0e-10) || (yDotOnScale2 < 1.0e-10)) ?\n               1.0e-6 : (0.01 * Math.sqrt(yOnScale2 / yDotOnScale2));\n    if (! forward) {\n      h = -h;\n    }\n\n    // perform an Euler step using the preceding rough guess\n    for (int j = 0; j < y0.length; ++j) {\n      y1[j] = y0[j] + h * yDot0[j];\n    }\n    computeDerivatives(t0 + h, y1, yDot1);\n\n    // estimate the second derivative of the solution\n    double yDDotOnScale = 0;\n    for (int j = 0; j < y0.length; ++j) {\n      ratio         = (yDot1[j] - yDot0[j]) / scale[j];\n      yDDotOnScale += ratio * ratio;\n    }\n    yDDotOnScale = Math.sqrt(yDDotOnScale) / h;\n\n    // step size is computed such that\n    // h^order * max (||y'/tol||, ||y''/tol||) = 0.01\n    final double maxInv2 = Math.max(Math.sqrt(yDotOnScale2), yDDotOnScale);\n    final double h1 = (maxInv2 < 1.0e-15) ?\n                      Math.max(1.0e-6, 0.001 * Math.abs(h)) :\n                      Math.pow(0.01 / maxInv2, 1.0 / order);\n    h = Math.min(100.0 * Math.abs(h), h1);\n    h = Math.max(h, 1.0e-12 * Math.abs(t0));  // avoids cancellation when computing t1 - t0\n    if (h < getMinStep()) {\n      h = getMinStep();\n    }\n    if (h > getMaxStep()) {\n      h = getMaxStep();\n    }\n    if (! forward) {\n      h = -h;\n    }\n\n    return h;\n\n  }\n",
+        "begin_line": 203,
+        "end_line": 266,
+        "comment": " Initialize the integration step.\n   * @param equations differential equations set\n   * @param forward forward integration indicator\n   * @param order order of the method\n   * @param scale scaling vector for the state vector\n   * @param t0 start time\n   * @param y0 state vector at t0\n   * @param yDot0 first time derivative of y0\n   * @param y1 work array for a state vector\n   * @param yDot1 work array for the first time derivative of y1\n   * @return first integration step\n   * @exception DerivativeException this exception is propagated to\n   * the caller if the underlying user function triggers one\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.filterStep#277",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.filterStep(double, boolean, boolean)",
+        "snippet": "  protected double filterStep(final double h, final boolean forward, final boolean acceptSmall)\n    throws IntegratorException {\n\n      double filteredH = h;\n      if (Math.abs(h) < minStep) {\n          if (acceptSmall) {\n              filteredH = forward ? minStep : -minStep;\n          } else {\n              throw new IntegratorException(\n                      \"minimal step size ({0,number,0.00E00}) reached, integration needs {1,number,0.00E00}\",\n                      minStep, Math.abs(h));\n          }\n      }\n\n      if (filteredH > maxStep) {\n          filteredH = maxStep;\n      } else if (filteredH < -maxStep) {\n          filteredH = -maxStep;\n      }\n\n      return filteredH;\n\n  }\n",
+        "begin_line": 277,
+        "end_line": 299,
+        "comment": " Filter the integration step.\n   * @param h signed step\n   * @param forward forward integration indicator\n   * @param acceptSmall if true, steps smaller than the minimal value\n   * are silently increased up to this value, if false such small\n   * steps generate an exception\n   * @return a bounded integration step (h if no bound is reach, or a bounded value)\n   * @exception IntegratorException if the step is too small and acceptSmall is false\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.4082
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BrentSolver.solve#254",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.solve(org.apache.commons.math.analysis.UnivariateRealFunction, double, double, double, double, double, double)",
+        "snippet": "    private double solve(final UnivariateRealFunction f,\n                         double x0, double y0,\n                         double x1, double y1,\n                         double x2, double y2)\n    throws MaxIterationsExceededException, FunctionEvaluationException {\n\n        double delta = x1 - x0;\n        double oldDelta = delta;\n\n        int i = 0;\n        while (i < maximalIterationCount) {\n            if (Math.abs(y2) < Math.abs(y1)) {\n                // use the bracket point if is better than last approximation\n                x0 = x1;\n                x1 = x2;\n                x2 = x0;\n                y0 = y1;\n                y1 = y2;\n                y2 = y0;\n            }\n            if (Math.abs(y1) <= functionValueAccuracy) {\n                // Avoid division by very small values. Assume\n                // the iteration has converged (the problem may\n                // still be ill conditioned)\n                setResult(x1, i);\n                return result;\n            }\n            double dx = x2 - x1;\n            double tolerance =\n                Math.max(relativeAccuracy * Math.abs(x1), absoluteAccuracy);\n            if (Math.abs(dx) <= tolerance) {\n                setResult(x1, i);\n                return result;\n            }\n            if ((Math.abs(oldDelta) < tolerance) ||\n                    (Math.abs(y0) <= Math.abs(y1))) {\n                // Force bisection.\n                delta = 0.5 * dx;\n                oldDelta = delta;\n            } else {\n                double r3 = y1 / y0;\n                double p;\n                double p1;\n                // the equality test (x0 == x2) is intentional,\n                // it is part of the original Brent's method,\n                // it should NOT be replaced by proximity test\n                if (x0 == x2) {\n                    // Linear interpolation.\n                    p = dx * r3;\n                    p1 = 1.0 - r3;\n                } else {\n                    // Inverse quadratic interpolation.\n                    double r1 = y0 / y2;\n                    double r2 = y1 / y2;\n                    p = r3 * (dx * r1 * (r1 - r2) - (x1 - x0) * (r2 - 1.0));\n                    p1 = (r1 - 1.0) * (r2 - 1.0) * (r3 - 1.0);\n                }\n                if (p > 0.0) {\n                    p1 = -p1;\n                } else {\n                    p = -p;\n                }\n                if (2.0 * p >= 1.5 * dx * p1 - Math.abs(tolerance * p1) ||\n                        p >= Math.abs(0.5 * oldDelta * p1)) {\n                    // Inverse quadratic interpolation gives a value\n                    // in the wrong direction, or progress is slow.\n                    // Fall back to bisection.\n                    delta = 0.5 * dx;\n                    oldDelta = delta;\n                } else {\n                    oldDelta = delta;\n                    delta = p / p1;\n                }\n            }\n            // Save old X1, Y1\n            x0 = x1;\n            y0 = y1;\n            // Compute new X1, Y1\n            if (Math.abs(delta) > tolerance) {\n                x1 = x1 + delta;\n            } else if (dx > 0.0) {\n                x1 = x1 + 0.5 * tolerance;\n            } else if (dx <= 0.0) {\n                x1 = x1 - 0.5 * tolerance;\n            }\n            y1 = f.value(x1);\n            if ((y1 > 0) == (y2 > 0)) {\n                x2 = x0;\n                y2 = y0;\n                delta = x1 - x0;\n                oldDelta = delta;\n            }\n            i++;\n        }\n        throw new MaxIterationsExceededException(maximalIterationCount);\n    }\n",
+        "begin_line": 254,
+        "end_line": 349,
+        "comment": "\n     * Find a zero starting search according to the three provided points.\n     * @param f the function to solve\n     * @param x0 old approximation for the root\n     * @param y0 function value at the approximation for the root\n     * @param x1 last calculated approximation for the root\n     * @param y1 function value at the last calculated approximation\n     * for the root\n     * @param x2 bracket point (must be set to x0 if no bracket point is\n     * known, this will force starting with linear interpolation)\n     * @param y2 function value at the bracket point.\n     * @return the value where the function is zero\n     * @throws MaxIterationsExceededException if the maximum iteration count\n     * is exceeded\n     * @throws FunctionEvaluationException if an error occurs evaluating\n     * the function\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3536
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "DummyStepInterpolator.computeInterpolatedStateAndDerivatives#104",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/DummyStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.DummyStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.DummyStepInterpolator.computeInterpolatedStateAndDerivatives(double, double)",
+        "snippet": "  @Override\n  protected void computeInterpolatedStateAndDerivatives(final double theta, final double oneMinusThetaH)\n    throws DerivativeException {\n      System.arraycopy(currentState,      0, interpolatedState,       0, currentState.length);\n      System.arraycopy(currentDerivative, 0, interpolatedDerivatives, 0, currentDerivative.length);\n  }\n",
+        "begin_line": 104,
+        "end_line": 109,
+        "comment": " Compute the state at the interpolated time.\n   * In this class, this method does nothing: the interpolated state\n   * is always the state at the end of the current step.\n   * @param theta normalized interpolation abscissa within the step\n   * (theta is zero at the previous time step and one at the current time step)\n   * @param oneMinusThetaH time gap between the interpolated time and\n   * the current time\n   * @throws DerivativeException this exception is propagated to the caller if the\n   * underlying user function triggers one\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2887
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "DummyStepInterpolator.DummyStepInterpolator#71",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/DummyStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.DummyStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.DummyStepInterpolator.DummyStepInterpolator(double[], double[], boolean)",
+        "snippet": "  public DummyStepInterpolator(final double[] y, final double[] yDot, final boolean forward) {\n    super(y, forward);\n    currentDerivative = yDot;\n  }\n",
+        "begin_line": 71,
+        "end_line": 74,
+        "comment": " Simple constructor.\n   * @param y reference to the integrator array holding the state at\n   * the end of the step\n   * @param yDot reference to the integrator array holding the state\n   * derivative at some arbitrary point within the step\n   * @param forward integration direction indicator\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2828
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.AbstractStepInterpolator#107",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.AbstractStepInterpolator(double[], boolean)",
+        "snippet": "  protected AbstractStepInterpolator(final double[] y, final boolean forward) {\n\n    previousTime      = Double.NaN;\n    currentTime       = Double.NaN;\n    h                 = Double.NaN;\n    interpolatedTime  = Double.NaN;\n\n    currentState            = y;\n    interpolatedState       = new double[y.length];\n    interpolatedDerivatives = new double[y.length];\n\n    finalized         = false;\n    this.forward      = forward;\n    this.dirtyState   = true;\n\n  }\n",
+        "begin_line": 107,
+        "end_line": 122,
+        "comment": " Simple constructor.\n   * @param y reference to the integrator array holding the state at\n   * the end of the step\n   * @param forward integration direction indicator\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2828
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.isEmpty#108",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.isEmpty()",
+        "snippet": "    public boolean isEmpty() {\n        return states.isEmpty();\n    }\n",
+        "begin_line": 108,
+        "end_line": 110,
+        "comment": " Check if the manager does not manage any event handlers.\n     * @return true if manager is empty\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2722
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.requiresDenseOutput#122",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.requiresDenseOutput()",
+        "snippet": "    protected boolean requiresDenseOutput() {\n        for (StepHandler handler : stepHandlers) {\n            if (handler.requiresDenseOutput()) {\n                return true;\n            }\n        }\n        return false;\n    }\n",
+        "begin_line": 122,
+        "end_line": 129,
+        "comment": " Check if one of the step handlers requires dense output.\n     * @return true if one of the step handlers requires dense output\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2722
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "ClassicalRungeKuttaStepInterpolator.ClassicalRungeKuttaStepInterpolator#64",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/ClassicalRungeKuttaStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.ClassicalRungeKuttaStepInterpolator",
+        "signature": "org.apache.commons.math.ode.nonstiff.ClassicalRungeKuttaStepInterpolator.ClassicalRungeKuttaStepInterpolator()",
+        "snippet": "    public ClassicalRungeKuttaStepInterpolator() {\n    }\n",
+        "begin_line": 64,
+        "end_line": 65,
+        "comment": " Simple constructor.\n     * This constructor builds an instance that is not usable yet, the\n     * {@link RungeKuttaStepInterpolator#reinitialize} method should be\n     * called before using the instance in order to initialize the\n     * internal arrays. This constructor is used only in order to delay\n     * the initialization in some cases. The {@link RungeKuttaIntegrator}\n     * class uses the prototyping design pattern to create the step\n     * interpolators by cloning an uninitialized model and latter initializing\n     * the copy.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ClassicalRungeKuttaIntegrator.ClassicalRungeKuttaIntegrator#70",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/ClassicalRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.ClassicalRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.ClassicalRungeKuttaIntegrator.ClassicalRungeKuttaIntegrator(double)",
+        "snippet": "  public ClassicalRungeKuttaIntegrator(final double step) {\n    super(\"classical Runge-Kutta\", STATIC_C, STATIC_A, STATIC_B,\n          new ClassicalRungeKuttaStepInterpolator(), step);\n  }\n",
+        "begin_line": 70,
+        "end_line": 73,
+        "comment": " Simple constructor.\n   * Build a fourth-order Runge-Kutta integrator with the given\n   * step.\n   * @param step integration step\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.reset#327",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.reset(double, double[])",
+        "snippet": "    public boolean reset(final double t, final double[] y)\n        throws EventException {\n\n        if (! pendingEvent) {\n            return false;\n        }\n\n        if (nextAction == EventHandler.RESET_STATE) {\n            handler.resetState(t, y);\n        }\n        pendingEvent      = false;\n        pendingEventTime  = Double.NaN;\n\n        return (nextAction == EventHandler.RESET_STATE) ||\n               (nextAction == EventHandler.RESET_DERIVATIVES);\n\n    }\n",
+        "begin_line": 327,
+        "end_line": 343,
+        "comment": " Let the event handler reset the state if it wants.\n     * @param t value of the independent <i>time</i> variable at the\n     * beginning of the next step\n     * @param y array were to put the desired state vector at the beginning\n     * of the next step\n     * @return true if the integrator should reset the derivatives too\n     * @exception EventException if the state cannot be reseted by the event\n     * handler\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1571
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.eventOccurred#261",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.EndTimeChecker.eventOccurred(double, double[], boolean)",
+        "snippet": "        public int eventOccurred(double t, double[] y, boolean increasing) {\n            return STOP;\n        }\n",
+        "begin_line": 261,
+        "end_line": 263,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.FirstOrderIntegrator": null,
+            "org.apache.commons.math.ode.events.EventHandler": " Handle an event and choose what to do next.\n\n   * <p>This method is called when the integrator has accepted a step\n   * ending exactly on a sign change of the function, just <em>before</em>\n   * the step handler itself is called (see below for scheduling). It\n   * allows the user to update his internal data to acknowledge the fact\n   * the event has been handled (for example setting a flag in the {@link\n   * org.apache.commons.math.ode.FirstOrderDifferentialEquations\n   * differential equations} to switch the derivatives computation in\n   * case of discontinuity), or to direct the integrator to either stop\n   * or continue integration, possibly with a reset state or derivatives.</p>\n\n   * <ul>\n   *   <li>if {@link #STOP} is returned, the step handler will be called\n   *   with the <code>isLast</code> flag of the {@link\n   *   org.apache.commons.math.ode.sampling.StepHandler#handleStep handleStep}\n   *   method set to true and the integration will be stopped,</li>\n   *   <li>if {@link #RESET_STATE} is returned, the {@link #resetState\n   *   resetState} method will be called once the step handler has\n   *   finished its task, and the integrator will also recompute the\n   *   derivatives,</li>\n   *   <li>if {@link #RESET_DERIVATIVES} is returned, the integrator\n   *   will recompute the derivatives,\n   *   <li>if {@link #CONTINUE} is returned, no specific action will\n   *   be taken (apart from having called this method) and integration\n   *   will continue.</li>\n   * </ul>\n\n   * <p>The scheduling between this method and the {@link\n   * org.apache.commons.math.ode.sampling.StepHandler StepHandler} method {@link\n   * org.apache.commons.math.ode.sampling.StepHandler#handleStep(\n   * org.apache.commons.math.ode.sampling.StepInterpolator, boolean)\n   * handleStep(interpolator, isLast)} is to call this method first and\n   * <code>handleStep</code> afterwards. This scheduling allows the integrator to\n   * pass <code>true</code> as the <code>isLast</code> parameter to the step\n   * handler to make it aware the step will be the last one if this method\n   * returns {@link #STOP}. As the interpolator may be used to navigate back\n   * throughout the last step (as {@link\n   * org.apache.commons.math.ode.sampling.StepNormalizer StepNormalizer}\n   * does for example), user code called by this method and user\n   * code called by step handlers may experience apparently out of order values\n   * of the independent time variable. As an example, if the same user object\n   * implements both this {@link EventHandler EventHandler} interface and the\n   * {@link org.apache.commons.math.ode.sampling.FixedStepHandler FixedStepHandler}\n   * interface, a <em>forward</em> integration may call its\n   * <code>eventOccurred</code> method with t = 10 first and call its\n   * <code>handleStep</code> method with t = 9 afterwards. Such out of order\n   * calls are limited to the size of the integration step for {@link\n   * org.apache.commons.math.ode.sampling.StepHandler variable step handlers} and\n   * to the size of the fixed step for {@link\n   * org.apache.commons.math.ode.sampling.FixedStepHandler fixed step handlers}.</p>\n\n   * @param t current value of the independent <i>time</i> variable\n   * @param y array containing the current value of the state vector\n   * @param increasing if true, the value of the switching function increases\n   * when times increases around event (note that increase is measured with respect\n   * to physical time, not with respect to integration which may go backward in time)\n   * @return indication of what the integrator should do next, this\n   * value must be one of {@link #STOP}, {@link #RESET_STATE},\n   * {@link #RESET_DERIVATIVES} or {@link #CONTINUE}\n   * @exception EventException if the event occurrence triggers an error\n   ",
+            "org.apache.commons.math.ode.ODEIntegrator": null
+        },
+        "susp": {
+            "ochiai_susp": 0.1534
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.evaluateStep#167",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.evaluateStep(org.apache.commons.math.ode.sampling.StepInterpolator)",
+        "snippet": "    public boolean evaluateStep(final StepInterpolator interpolator)\n        throws DerivativeException, EventException, ConvergenceException {\n\n        try {\n\n            forward = interpolator.isForward();\n            final double t1 = interpolator.getCurrentTime();\n            final int    n  = Math.max(1, (int) Math.ceil(Math.abs(t1 - t0) / maxCheckInterval));\n            final double h  = (t1 - t0) / n;\n\n            double ta = t0;\n            double ga = g0;\n            double tb = t0 + (interpolator.isForward() ? convergence : -convergence);\n            for (int i = 0; i < n; ++i) {\n\n                // evaluate handler value at the end of the substep\n                tb += h;\n                interpolator.setInterpolatedTime(tb);\n                final double gb = handler.g(tb, interpolator.getInterpolatedState());\n\n                // check events occurrence\n                if (g0Positive ^ (gb >= 0)) {\n                    // there is a sign change: an event is expected during this step\n\n                    if (ga * gb > 0) {\n                        // this is a corner case:\n                        // - there was an event near ta,\n                        // - there is another event between ta and tb\n                        // - when ta was computed, convergence was reached on the \"wrong side\" of the interval\n                        // this implies that the real sign of ga is the same as gb, so we need to slightly\n                        // shift ta to make sure ga and gb get opposite signs and the solver won't complain\n                        // about bracketing\n                        final double epsilon = (forward ? 0.25 : -0.25) * convergence;\n                        for (int k = 0; (k < 4) && (ga * gb > 0); ++k) {\n                            ta += epsilon;\n                            interpolator.setInterpolatedTime(ta);\n                            ga = handler.g(ta, interpolator.getInterpolatedState());\n                        }\n                        if (ga * gb > 0) {\n                            // this should never happen\n                            throw MathRuntimeException.createInternalError(null);\n                        }\n                    }\n\n                    // variation direction, with respect to the integration direction\n                    increasing = gb >= ga;\n\n                    final UnivariateRealFunction f = new UnivariateRealFunction() {\n                        public double value(final double t) throws FunctionEvaluationException {\n                            try {\n                                interpolator.setInterpolatedTime(t);\n                                return handler.g(t, interpolator.getInterpolatedState());\n                            } catch (DerivativeException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            } catch (EventException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            }\n                        }\n                    };\n                    final BrentSolver solver = new BrentSolver();\n                    solver.setAbsoluteAccuracy(convergence);\n                    solver.setMaximalIterationCount(maxIterationCount);\n                    final double root = (ta <= tb) ? solver.solve(f, ta, tb) : solver.solve(f, tb, ta);\n                    if ((Math.abs(root - ta) <= convergence) &&\n                         (Math.abs(root - previousEventTime) <= convergence)) {\n                        // we have either found nothing or found (again ?) a past event, we simply ignore it\n                        ta = tb;\n                        ga = gb;\n                    } else if (Double.isNaN(previousEventTime) ||\n                               (Math.abs(previousEventTime - root) > convergence)) {\n                        pendingEventTime = root;\n                        if (pendingEvent && (Math.abs(t1 - pendingEventTime) <= convergence)) {\n                            // we were already waiting for this event which was\n                            // found during a previous call for a step that was\n                            // rejected, this step must now be accepted since it\n                            // properly ends exactly at the event occurrence\n                            return false;\n                        }\n                        // either we were not waiting for the event or it has\n                        // moved in such a way the step cannot be accepted\n                        pendingEvent = true;\n                        return true;\n                    }\n\n                } else {\n                    // no sign change: there is no event for now\n                    ta = tb;\n                    ga = gb;\n                }\n\n            }\n\n            // no event during the whole step\n            pendingEvent     = false;\n            pendingEventTime = Double.NaN;\n            return false;\n\n        } catch (FunctionEvaluationException e) {\n            final Throwable cause = e.getCause();\n            if ((cause != null) && (cause instanceof DerivativeException)) {\n                throw (DerivativeException) cause;\n            } else if ((cause != null) && (cause instanceof EventException)) {\n                throw (EventException) cause;\n            }\n            throw new EventException(e);\n        }\n\n    }\n",
+        "begin_line": 167,
+        "end_line": 274,
+        "comment": " Evaluate the impact of the proposed step on the event handler.\n     * @param interpolator step interpolator for the proposed step\n     * @return true if the event handler triggers an event before\n     * the end of the proposed step (this implies the step should be\n     * rejected)\n     * @exception DerivativeException if the interpolator fails to\n     * compute the switching function somewhere within the step\n     * @exception EventException if the switching function\n     * cannot be evaluated\n     * @exception ConvergenceException if an event cannot be located\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.getEventTime#281",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.getEventTime()",
+        "snippet": "    public double getEventTime() {\n        return pendingEventTime;\n    }\n",
+        "begin_line": 281,
+        "end_line": 283,
+        "comment": " Get the occurrence time of the event triggered in the current\n     * step.\n     * @return occurrence time of the event triggered in the current\n     * step.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.stepAccepted#293",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.stepAccepted(double, double[])",
+        "snippet": "    public void stepAccepted(final double t, final double[] y)\n        throws EventException {\n\n        t0 = t;\n        g0 = handler.g(t, y);\n\n        if (pendingEvent) {\n            // force the sign to its value \"just after the event\"\n            previousEventTime = t;\n            g0Positive        = increasing;\n            nextAction        = handler.eventOccurred(t, y, !(increasing ^ forward));\n        } else {\n            g0Positive = g0 >= 0;\n            nextAction = EventHandler.CONTINUE;\n        }\n    }\n",
+        "begin_line": 293,
+        "end_line": 308,
+        "comment": " Acknowledge the fact the step has been accepted by the integrator.\n     * @param t value of the independent <i>time</i> variable at the\n     * end of the step\n     * @param y array containing the current value of the state vector\n     * at the end of the step\n     * @exception EventException if the value of the event\n     * handler cannot be evaluated\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.evaluateStep#122",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.evaluateStep(org.apache.commons.math.ode.sampling.StepInterpolator)",
+        "snippet": "    public boolean evaluateStep(final StepInterpolator interpolator)\n    throws DerivativeException, IntegratorException {\n\n        try {\n\n            first = null;\n            if (states.isEmpty()) {\n                // there is nothing to do, return now to avoid setting the\n                // interpolator time (and hence avoid unneeded calls to the\n                // user function due to interpolator finalization)\n                return false;\n            }\n\n            if (! initialized) {\n\n                // initialize the events states\n                final double t0 = interpolator.getPreviousTime();\n                interpolator.setInterpolatedTime(t0);\n                final double [] y = interpolator.getInterpolatedState();\n                for (EventState state : states) {\n                    state.reinitializeBegin(t0, y);\n                }\n\n                initialized = true;\n\n            }\n\n            // check events occurrence\n            for (EventState state : states) {\n\n                if (state.evaluateStep(interpolator)) {\n                    if (first == null) {\n                        first = state;\n                    } else {\n                        if (interpolator.isForward()) {\n                            if (state.getEventTime() < first.getEventTime()) {\n                                first = state;\n                            }\n                        } else {\n                            if (state.getEventTime() > first.getEventTime()) {\n                                first = state;\n                            }\n                        }\n                    }\n                }\n\n            }\n\n            return first != null;\n\n        } catch (EventException se) {\n            throw new IntegratorException(se);\n        } catch (ConvergenceException ce) {\n            throw new IntegratorException(ce);\n        }\n\n    }\n",
+        "begin_line": 122,
+        "end_line": 178,
+        "comment": " Evaluate the impact of the proposed step on all managed\n     * event handlers.\n     * @param interpolator step interpolator for the proposed step\n     * @return true if at least one event handler triggers an event\n     * before the end of the proposed step (this implies the step should\n     * be rejected)\n     * @exception DerivativeException if the interpolator fails to\n     * compute the function somewhere within the step\n     * @exception IntegratorException if an event cannot be located\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.getEventTime#186",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.getEventTime()",
+        "snippet": "    public double getEventTime() {\n        return (first == null) ? Double.NaN : first.getEventTime();\n    }\n",
+        "begin_line": 186,
+        "end_line": 188,
+        "comment": " Get the occurrence time of the first event triggered in the\n     * last evaluated step.\n     * @return occurrence time of the first event triggered in the last\n     * evaluated step, or </code>Double.NaN</code> if no event is\n     * triggered\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.stop#214",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.stop()",
+        "snippet": "    public boolean stop() {\n        for (EventState state : states) {\n            if (state.stop()) {\n                return true;\n            }\n        }\n        return false;\n    }\n",
+        "begin_line": 214,
+        "end_line": 221,
+        "comment": " Check if the integration should be stopped at the end of the\n     * current step.\n     * @return true if the integration should be stopped\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "UnivariateRealSolverImpl.setResult#140",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.setResult(double, int)",
+        "snippet": "    protected final void setResult(final double newResult, final int iterationCount) {\n        this.result         = newResult;\n        this.iterationCount = iterationCount;\n        this.resultComputed = true;\n    }\n",
+        "begin_line": 140,
+        "end_line": 144,
+        "comment": "\n     * Convenience function for implementations.\n     *\n     * @param newResult the result to set\n     * @param iterationCount the iteration count to set\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "BrentSolver.solve#194",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.solve(org.apache.commons.math.analysis.UnivariateRealFunction, double, double)",
+        "snippet": "    public double solve(final UnivariateRealFunction f,\n                        final double min, final double max)\n        throws MaxIterationsExceededException,\n        FunctionEvaluationException {\n\n        clearResult();\n        verifyInterval(min, max);\n\n        double ret = Double.NaN;\n\n        double yMin = f.value(min);\n        double yMax = f.value(max);\n\n        // Verify bracketing\n        double sign = yMin * yMax;\n        if (sign > 0) {\n            // check if either value is close to a zero\n            if (Math.abs(yMin) <= functionValueAccuracy) {\n                setResult(min, 0);\n                ret = min;\n            } else if (Math.abs(yMax) <= functionValueAccuracy) {\n                setResult(max, 0);\n                ret = max;\n            } else {\n                // neither value is close to zero and min and max do not bracket root.\n                throw MathRuntimeException.createIllegalArgumentException(\n                        NON_BRACKETING_MESSAGE, min, max, yMin, yMax);\n            }\n        } else if (sign < 0){\n            // solve using only the first endpoint as initial guess\n            ret = solve(f, min, yMin, max, yMax, min, yMin);\n        } else {\n            // either min or max is a root\n            if (yMin == 0.0) {\n                ret = min;\n            } else {\n                ret = max;\n            }\n        }\n\n        return ret;\n    }\n",
+        "begin_line": 194,
+        "end_line": 235,
+        "comment": "\n     * Find a zero in the given interval.\n     * <p>\n     * Requires that the values of the function at the endpoints have opposite\n     * signs. An <code>IllegalArgumentException</code> is thrown if this is not\n     * the case.</p>\n     *\n     * @param f the function to solve\n     * @param min the lower bound for the interval.\n     * @param max the upper bound for the interval.\n     * @return the value where the function is zero\n     * @throws MaxIterationsExceededException if the maximum iteration count is exceeded\n     * @throws FunctionEvaluationException if an error occurs evaluating the\n     * function\n     * @throws IllegalArgumentException if min is not less than max or the\n     * signs of the values of the function at the endpoints are not opposites\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1499
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.value#215",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.Anonymous-70ba365b-1736-49f7-8272-b1aa9dd65929.value(double)",
+        "snippet": "                        public double value(final double t) throws FunctionEvaluationException {\n                            try {\n                                interpolator.setInterpolatedTime(t);\n                                return handler.g(t, interpolator.getInterpolatedState());\n                            } catch (DerivativeException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            } catch (EventException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            }\n                        }\n",
+        "begin_line": 215,
+        "end_line": 224,
+        "comment": "",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "UnivariateRealSolverImpl.UnivariateRealSolverImpl#91",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.UnivariateRealSolverImpl(int, double)",
+        "snippet": "    protected UnivariateRealSolverImpl(final int defaultMaximalIterationCount,\n                                       final double defaultAbsoluteAccuracy) {\n        super(defaultMaximalIterationCount, defaultAbsoluteAccuracy);\n        this.defaultFunctionValueAccuracy = 1.0e-15;\n        this.functionValueAccuracy = defaultFunctionValueAccuracy;\n    }\n",
+        "begin_line": 91,
+        "end_line": 96,
+        "comment": "\n     * Construct a solver with given iteration count and accuracy.\n     *\n     * @param defaultAbsoluteAccuracy maximum absolute error\n     * @param defaultMaximalIterationCount maximum number of iterations\n     * @throws IllegalArgumentException if f is null or the\n     * defaultAbsoluteAccuracy is not valid\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "UnivariateRealSolverImpl.clearResult#164",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.clearResult()",
+        "snippet": "    protected final void clearResult() {\n        this.iterationCount = 0;\n        this.resultComputed = false;\n    }\n",
+        "begin_line": 164,
+        "end_line": 167,
+        "comment": "\n     * Convenience function for implementations.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "UnivariateRealSolverImpl.verifyInterval#207",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.verifyInterval(double, double)",
+        "snippet": "    protected void verifyInterval(final double lower, final double upper) {\n        if (lower >= upper) {\n            throw MathRuntimeException.createIllegalArgumentException(\n                    \"endpoints do not specify an interval: [{0}, {1}]\",\n                    lower, upper);\n        }\n    }\n",
+        "begin_line": 207,
+        "end_line": 213,
+        "comment": "\n     * Verifies that the endpoints specify an interval,\n     * throws IllegalArgumentException if not\n     *\n     * @param lower  lower endpoint\n     * @param upper upper endpoint\n     * @throws IllegalArgumentException\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "BrentSolver.BrentSolver#71",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.BrentSolver()",
+        "snippet": "    public BrentSolver() {\n        super(DEFAULT_MAXIMUM_ITERATIONS, DEFAULT_ABSOLUTE_ACCURACY);\n    }\n",
+        "begin_line": 71,
+        "end_line": 73,
+        "comment": "\n     * Construct a solver with default properties.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.ConvergingAlgorithmImpl#60",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.ConvergingAlgorithmImpl(int, double)",
+        "snippet": "    protected ConvergingAlgorithmImpl(final int defaultMaximalIterationCount,\n                                      final double defaultAbsoluteAccuracy) {\n        this.defaultAbsoluteAccuracy = defaultAbsoluteAccuracy;\n        this.defaultRelativeAccuracy = 1.0e-14;\n        this.absoluteAccuracy = defaultAbsoluteAccuracy;\n        this.relativeAccuracy = defaultRelativeAccuracy;\n        this.defaultMaximalIterationCount = defaultMaximalIterationCount;\n        this.maximalIterationCount = defaultMaximalIterationCount;\n        this.iterationCount = 0;\n    }\n",
+        "begin_line": 60,
+        "end_line": 69,
+        "comment": "\n     * Construct an algorithm with given iteration count and accuracy.\n     *\n     * @param defaultAbsoluteAccuracy maximum absolute error\n     * @param defaultMaximalIterationCount maximum number of iterations\n     * @throws IllegalArgumentException if f is null or the\n     * defaultAbsoluteAccuracy is not valid\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.setAbsoluteAccuracy#77",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.setAbsoluteAccuracy(double)",
+        "snippet": "    public void setAbsoluteAccuracy(double accuracy) {\n        absoluteAccuracy = accuracy;\n    }\n",
+        "begin_line": 77,
+        "end_line": 79,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ConvergingAlgorithm": "\n     * Set the absolute accuracy.\n     * <p>\n     * The default is usually chosen so that results in the interval\n     * -10..-0.1 and +0.1..+10 can be found with a reasonable accuracy. If the\n     * expected absolute value of your results is of much smaller magnitude, set\n     * this to a smaller value.</p>\n     * <p>\n     * Algorithms are advised to do a plausibility check with the relative\n     * accuracy, but clients should not rely on this.</p>\n     *\n     * @param accuracy the accuracy.\n     * @throws IllegalArgumentException if the accuracy can't be achieved by\n     * the solver or is otherwise deemed unreasonable.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.setMaximalIterationCount#92",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.setMaximalIterationCount(int)",
+        "snippet": "    public void setMaximalIterationCount(int count) {\n        maximalIterationCount = count;\n    }\n",
+        "begin_line": 92,
+        "end_line": 94,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ConvergingAlgorithm": "\n     * Set the upper limit for the number of iterations.\n     * <p>\n     * Usually a high iteration count indicates convergence problems. However,\n     * the \"reasonable value\" varies widely for different algorithms. Users are\n     * advised to use the default value supplied by the algorithm.</p>\n     * <p>\n     * A {@link ConvergenceException} will be thrown if this number\n     * is exceeded.</p>\n     *\n     * @param count maximum number of iterations\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.reinitializeBegin#149",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.reinitializeBegin(double, double[])",
+        "snippet": "    public void reinitializeBegin(final double tStart, final double[] yStart)\n        throws EventException {\n        t0 = tStart;\n        g0 = handler.g(tStart, yStart);\n        g0Positive = g0 >= 0;\n    }\n",
+        "begin_line": 149,
+        "end_line": 154,
+        "comment": " Reinitialize the beginning of the step.\n     * @param tStart value of the independent <i>time</i> variable at the\n     * beginning of the step\n     * @param yStart array containing the current value of the state vector\n     * at the beginning of the step\n     * @exception EventException if the event handler\n     * value cannot be evaluated at the beginning of the step\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1466
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.stop#314",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.stop()",
+        "snippet": "    public boolean stop() {\n        return nextAction == EventHandler.STOP;\n    }\n",
+        "begin_line": 314,
+        "end_line": 316,
+        "comment": " Check if the integration should be stopped at the end of the\n     * current step.\n     * @return true if the integration should be stopped\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1466
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.stepAccepted#199",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.stepAccepted(double, double[])",
+        "snippet": "    public void stepAccepted(final double t, final double[] y)\n    throws IntegratorException {\n        try {\n            for (EventState state : states) {\n                state.stepAccepted(t, y);\n            }\n        } catch (EventException se) {\n            throw new IntegratorException(se);\n        }\n    }\n",
+        "begin_line": 199,
+        "end_line": 208,
+        "comment": " Inform the event handlers that the step has been accepted\n     * by the integrator.\n     * @param t value of the independent <i>time</i> variable at the\n     * end of the step\n     * @param y array containing the current value of the state vector\n     * at the end of the step\n     * @exception IntegratorException if the value of one of the\n     * events states cannot be evaluated\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1466
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.reset#232",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.reset(double, double[])",
+        "snippet": "    public boolean reset(final double t, final double[] y)\n        throws IntegratorException {\n        try {\n            boolean resetDerivatives = false;\n            for (EventState state : states) {\n                if (state.reset(t, y)) {\n                    resetDerivatives = true;\n                }\n            }\n            return resetDerivatives;\n        } catch (EventException se) {\n            throw new IntegratorException(se);\n        }\n    }\n",
+        "begin_line": 232,
+        "end_line": 245,
+        "comment": " Let the event handlers reset the state if they want.\n     * @param t value of the independent <i>time</i> variable at the\n     * beginning of the next step\n     * @param y array were to put the desired state vector at the beginning\n     * of the next step\n     * @return true if the integrator should reset the derivatives too\n     * @exception IntegratorException if one of the events states\n     * that should reset the state fails to do it\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1466
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.g#266",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.EndTimeChecker.g(double, double[])",
+        "snippet": "        public double g(double t, double[] y) {\n            return t - endTime;\n        }\n",
+        "begin_line": 266,
+        "end_line": 268,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.FirstOrderIntegrator": null,
+            "org.apache.commons.math.ode.events.EventHandler": " Compute the value of the switching function.\n\n   * <p>The discrete events are generated when the sign of this\n   * switching function changes. The integrator will take care to change\n   * the stepsize in such a way these events occur exactly at step boundaries.\n   * The switching function must be continuous in its roots neighborhood\n   * (but not necessarily smooth), as the integrator will need to find its\n   * roots to locate precisely the events.</p>\n\n   * @param t current value of the independent <i>time</i> variable\n   * @param y array containing the current value of the state vector\n   * @return value of the g switching function\n   * @exception EventException if the switching function cannot be evaluated\n   ",
+            "org.apache.commons.math.ode.ODEIntegrator": null
+        },
+        "susp": {
+            "ochiai_susp": 0.1466
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.isForward#250",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.isForward()",
+        "snippet": "  public boolean isForward() {\n    return forward;\n  }\n",
+        "begin_line": 250,
+        "end_line": 252,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": " Check if the natural integration direction is forward.\n   * <p>This method provides the integration direction as specified by\n   * the integrator itself, it avoid some nasty problems in\n   * degenerated cases like null steps due to cancellation at step\n   * initialization, step control or discrete events\n   * triggering.</p>\n   * @return true if the integration variable (time) increases during\n   * integration\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1459
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.getPreviousTime#229",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.getPreviousTime()",
+        "snippet": "  public double getPreviousTime() {\n    return previousTime;\n  }\n",
+        "begin_line": 229,
+        "end_line": 231,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Get the previous grid point time.\n   * @return previous grid point time\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1451
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.getCurrentTime#234",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.getCurrentTime()",
+        "snippet": "  public double getCurrentTime() {\n    return currentTime;\n  }\n",
+        "begin_line": 234,
+        "end_line": 236,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Get the current grid point time.\n   * @return current grid point time\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1451
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.getInterpolatedState#269",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.getInterpolatedState()",
+        "snippet": "  public double[] getInterpolatedState() throws DerivativeException {\n\n      // lazy evaluation of the state\n      if (dirtyState) {\n          final double oneMinusThetaH = currentTime - interpolatedTime;\n          final double theta = (h == 0) ? 0 : (h - oneMinusThetaH) / h;\n          computeInterpolatedStateAndDerivatives(theta, oneMinusThetaH);\n          dirtyState = false;\n      }\n\n      return interpolatedState;\n\n  }\n",
+        "begin_line": 269,
+        "end_line": 281,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Get the state vector of the interpolated point.\n   * <p>The returned vector is a reference to a reused array, so\n   * it should not be modified and it should be copied if it needs\n   * to be preserved across several calls.</p>\n   * @return state vector at time {@link #getInterpolatedTime}\n   * @see #getInterpolatedDerivatives()\n   * @throws DerivativeException if this call induces an automatic\n   * step finalization that throws one\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1436
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.computeDerivatives#177",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.computeDerivatives(double, double[], double[])",
+        "snippet": "    public void computeDerivatives(final double t, final double[] y, final double[] yDot)\n        throws DerivativeException {\n        if (++evaluations > maxEvaluations) {\n            throw new DerivativeException(new MaxEvaluationsExceededException(maxEvaluations));\n        }\n        equations.computeDerivatives(t, y, yDot);\n    }\n",
+        "begin_line": 177,
+        "end_line": 183,
+        "comment": " Compute the derivatives and check the number of evaluations.\n     * @param t current value of the independent <I>time</I> variable\n     * @param y array containing the current value of the state vector\n     * @param yDot placeholder array where to put the time derivative of the state vector\n     * @throws DerivativeException this exception is propagated to the caller if the\n     * underlying user function triggers one\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1429
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "EventState.EventState#94",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.EventState(org.apache.commons.math.ode.events.EventHandler, double, double, int)",
+        "snippet": "    public EventState(final EventHandler handler, final double maxCheckInterval,\n                      final double convergence, final int maxIterationCount) {\n        this.handler           = handler;\n        this.maxCheckInterval  = maxCheckInterval;\n        this.convergence       = Math.abs(convergence);\n        this.maxIterationCount = maxIterationCount;\n\n        // some dummy values ...\n        t0                = Double.NaN;\n        g0                = Double.NaN;\n        g0Positive        = true;\n        pendingEvent      = false;\n        pendingEventTime  = Double.NaN;\n        previousEventTime = Double.NaN;\n        increasing        = true;\n        nextAction        = EventHandler.CONTINUE;\n\n    }\n",
+        "begin_line": 94,
+        "end_line": 111,
+        "comment": " Simple constructor.\n     * @param handler event handler\n     * @param maxCheckInterval maximal time interval between switching\n     * function checks (this interval prevents missing sign changes in\n     * case the integration steps becomes very large)\n     * @param convergence convergence threshold in the event time search\n     * @param maxIterationCount upper limit of the iteration count in\n     * the event time search\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.addEventHandler#69",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.addEventHandler(org.apache.commons.math.ode.events.EventHandler, double, double, int)",
+        "snippet": "    public void addEventHandler(final EventHandler handler, final double maxCheckInterval,\n                                final double convergence, final int maxIterationCount) {\n        states.add(new EventState(handler, maxCheckInterval,\n                                  convergence, maxIterationCount));\n    }\n",
+        "begin_line": 69,
+        "end_line": 73,
+        "comment": " Add an events handler.\n     * @param handler event handler\n     * @param maxCheckInterval maximal time interval between events\n     * checks (this interval prevents missing sign changes in\n     * case the integration steps becomes very large)\n     * @param convergence convergence threshold in the event time search\n     * @param maxIterationCount upper limit of the iteration count in\n     * the event time search\n     * @see #getEventsHandlers()\n     * @see #clearEventsHandlers()\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.getEventsStates#101",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.getEventsStates()",
+        "snippet": "    public Collection<EventState> getEventsStates() {\n        return states;\n    }\n",
+        "begin_line": 101,
+        "end_line": 103,
+        "comment": " Get all the events state wrapping the handlers that have been added to the manager.\n     * @return a collection of the events states\n     * @see #getEventsHandlers()\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.EndTimeChecker#256",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.EndTimeChecker.EndTimeChecker(double)",
+        "snippet": "        public EndTimeChecker(final double endTime) {\n            this.endTime = endTime;\n        }\n",
+        "begin_line": 256,
+        "end_line": 258,
+        "comment": " Build an instance.\n         * @param endTime desired time\n         ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.setEquations#166",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.setEquations(org.apache.commons.math.ode.FirstOrderDifferentialEquations)",
+        "snippet": "    protected void setEquations(final FirstOrderDifferentialEquations equations) {\n        this.equations = equations;\n    }\n",
+        "begin_line": 166,
+        "end_line": 168,
+        "comment": " Set the differential equations.\n     * @param equations differential equations to integrate\n     * @see #computeDerivatives(double, double[], double[])\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.addEndTimeChecker#230",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.addEndTimeChecker(double, double, org.apache.commons.math.ode.events.CombinedEventsManager)",
+        "snippet": "    protected CombinedEventsManager addEndTimeChecker(final double startTime,\n                                                      final double endTime,\n                                                      final CombinedEventsManager manager) {\n        CombinedEventsManager newManager = new CombinedEventsManager();\n        for (final EventState state : manager.getEventsStates()) {\n            newManager.addEventHandler(state.getEventHandler(),\n                                       state.getMaxCheckInterval(),\n                                       state.getConvergence(),\n                                       state.getMaxIterationCount());\n        }\n        newManager.addEventHandler(new EndTimeChecker(endTime),\n                                   Double.POSITIVE_INFINITY,\n                                   Math.ulp(Math.max(Math.abs(startTime), Math.abs(endTime))),\n                                   100);\n        return newManager;\n    }\n",
+        "begin_line": 230,
+        "end_line": 245,
+        "comment": " Add an event handler for end time checking.\n     * <p>This method can be used to simplify handling of integration end time.\n     * It leverages the nominal stop condition with the exceptional stop\n     * conditions.</p>\n     * @param startTime integration start time\n     * @param endTime desired end time\n     * @param manager manager containing the user-defined handlers\n     * @return a new manager containing all the user-defined handlers plus a\n     * dedicated manager triggering a stop event at entTime\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1421
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.sanityChecks#193",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.sanityChecks(org.apache.commons.math.ode.FirstOrderDifferentialEquations, double, double[], double, double[])",
+        "snippet": "    protected void sanityChecks(final FirstOrderDifferentialEquations ode,\n                                final double t0, final double[] y0,\n                                final double t, final double[] y)\n        throws IntegratorException {\n\n        if (ode.getDimension() != y0.length) {\n            throw new IntegratorException(\n                    \"dimensions mismatch: ODE problem has dimension {0},\" +\n                    \" initial state vector has dimension {1}\",\n                    ode.getDimension(), y0.length);\n        }\n\n        if (ode.getDimension() != y.length) {\n            throw new IntegratorException(\n                    \"dimensions mismatch: ODE problem has dimension {0},\" +\n                    \" final state vector has dimension {1}\",\n                    ode.getDimension(), y.length);\n        }\n\n        if (Math.abs(t - t0) <= 1.0e-12 * Math.max(Math.abs(t0), Math.abs(t))) {\n            throw new IntegratorException(\n                    \"too small integration interval: length = {0}\",\n                    Math.abs(t - t0));\n        }\n\n    }\n",
+        "begin_line": 193,
+        "end_line": 218,
+        "comment": " Perform some sanity checks on the integration parameters.\n     * @param ode differential equations set\n     * @param t0 start time\n     * @param y0 state vector at t0\n     * @param t target time for the integration\n     * @param y placeholder where to put the state vector\n     * @exception IntegratorException if some inconsistency is detected\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1414
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "DormandPrince853Integrator.estimateError#245",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/DormandPrince853Integrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator.estimateError(double[][], double[], double[], double)",
+        "snippet": "  @Override\n  protected double estimateError(final double[][] yDotK,\n                                 final double[] y0, final double[] y1,\n                                 final double h) {\n    double error1 = 0;\n    double error2 = 0;\n\n    for (int j = 0; j < y0.length; ++j) {\n      final double errSum1 = E1_01 * yDotK[0][j]  + E1_06 * yDotK[5][j] +\n                             E1_07 * yDotK[6][j]  + E1_08 * yDotK[7][j] +\n                             E1_09 * yDotK[8][j]  + E1_10 * yDotK[9][j] +\n                             E1_11 * yDotK[10][j] + E1_12 * yDotK[11][j];\n      final double errSum2 = E2_01 * yDotK[0][j]  + E2_06 * yDotK[5][j] +\n                             E2_07 * yDotK[6][j]  + E2_08 * yDotK[7][j] +\n                             E2_09 * yDotK[8][j]  + E2_10 * yDotK[9][j] +\n                             E2_11 * yDotK[10][j] + E2_12 * yDotK[11][j];\n\n      final double yScale = Math.max(Math.abs(y0[j]), Math.abs(y1[j]));\n      final double tol = (vecAbsoluteTolerance == null) ?\n                         (scalAbsoluteTolerance + scalRelativeTolerance * yScale) :\n                         (vecAbsoluteTolerance[j] + vecRelativeTolerance[j] * yScale);\n      final double ratio1  = errSum1 / tol;\n      error1        += ratio1 * ratio1;\n      final double ratio2  = errSum2 / tol;\n      error2        += ratio2 * ratio2;\n    }\n\n    double den = error1 + 0.01 * error2;\n    if (den <= 0.0) {\n      den = 1.0;\n    }\n\n    return Math.abs(h) * error1 / Math.sqrt(y0.length * den);\n\n  }\n",
+        "begin_line": 245,
+        "end_line": 279,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator": " Compute the error ratio.\n   * @param yDotK derivatives computed during the first stages\n   * @param y0 estimate of the step at the start of the step\n   * @param y1 estimate of the step at the end of the step\n   * @param h  current step\n   * @return error ratio, greater than 1 if step should be rejected\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1414
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.shift#210",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.shift()",
+        "snippet": "  public void shift() {\n    previousTime = currentTime;\n  }\n",
+        "begin_line": 210,
+        "end_line": 212,
+        "comment": " Shift one step forward.\n   * Copy the current time into the previous time, hence preparing the\n   * interpolator for future calls to {@link #storeTime storeTime}\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1393
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.storeTime#217",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.storeTime(double)",
+        "snippet": "  public void storeTime(final double t) {\n\n    currentTime = t;\n    h           = currentTime - previousTime;\n    setInterpolatedTime(t);\n\n    // the step is not finalized anymore\n    finalized  = false;\n\n  }\n",
+        "begin_line": 217,
+        "end_line": 226,
+        "comment": " Store the current step time.\n   * @param t current time\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1393
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractStepInterpolator.setInterpolatedTime#244",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.setInterpolatedTime(double)",
+        "snippet": "  public void setInterpolatedTime(final double time) {\n      interpolatedTime = time;\n      dirtyState       = true;\n  }\n",
+        "begin_line": 244,
+        "end_line": 247,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Set the time of the interpolated point.\n   * <p>Setting the time outside of the current step is now allowed, but\n   * should be used with care since the accuracy of the interpolator will\n   * probably be very poor far from this step. This allowance has been\n   * added to simplify implementation of search algorithms near the\n   * step endpoints.</p>\n   * <p>Setting the time changes the instance internal state. If a\n   * specific state must be preserved, a copy of the instance must be\n   * created using {@link #copy()}.</p>\n   * @param time time of the interpolated point\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1393
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "DormandPrince853Integrator.DormandPrince853Integrator#213",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/DormandPrince853Integrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator.DormandPrince853Integrator(double, double, double, double)",
+        "snippet": "  public DormandPrince853Integrator(final double minStep, final double maxStep,\n                                    final double scalAbsoluteTolerance,\n                                    final double scalRelativeTolerance) {\n    super(METHOD_NAME, true, STATIC_C, STATIC_A, STATIC_B,\n          new DormandPrince853StepInterpolator(),\n          minStep, maxStep, scalAbsoluteTolerance, scalRelativeTolerance);\n  }\n",
+        "begin_line": 213,
+        "end_line": 219,
+        "comment": " Simple constructor.\n   * Build an eighth order Dormand-Prince integrator with the given step bounds\n   * @param minStep minimal step (must be positive even for backward\n   * integration), the last step can be smaller than this\n   * @param maxStep maximal step (must be positive even for backward\n   * integration)\n   * @param scalAbsoluteTolerance allowed absolute error\n   * @param scalRelativeTolerance allowed relative error\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1387
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.AbstractStepInterpolator#89",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.AbstractStepInterpolator()",
+        "snippet": "  protected AbstractStepInterpolator() {\n    previousTime            = Double.NaN;\n    currentTime             = Double.NaN;\n    h                       = Double.NaN;\n    interpolatedTime        = Double.NaN;\n    currentState            = null;\n    interpolatedState       = null;\n    interpolatedDerivatives = null;\n    finalized               = false;\n    this.forward            = true;\n    this.dirtyState         = true;\n  }\n",
+        "begin_line": 89,
+        "end_line": 100,
+        "comment": " Simple constructor.\n   * This constructor builds an instance that is not usable yet, the\n   * {@link #reinitialize} method should be called before using the\n   * instance in order to initialize the internal arrays. This\n   * constructor is used only in order to delay the initialization in\n   * some cases. As an example, the {@link\n   * org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator}\n   * class uses the prototyping design pattern to create the step\n   * interpolators by cloning an uninitialized model and latter\n   * initializing the copy.\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "RungeKuttaStepInterpolator.RungeKuttaStepInterpolator#56",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/RungeKuttaStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.RungeKuttaStepInterpolator",
+        "signature": "org.apache.commons.math.ode.nonstiff.RungeKuttaStepInterpolator.RungeKuttaStepInterpolator()",
+        "snippet": "  protected RungeKuttaStepInterpolator() {\n    super();\n    yDotK      = null;\n    integrator = null;\n  }\n",
+        "begin_line": 56,
+        "end_line": 60,
+        "comment": " Simple constructor.\n   * This constructor builds an instance that is not usable yet, the\n   * {@link #reinitialize} method should be called before using the\n   * instance in order to initialize the internal arrays. This\n   * constructor is used only in order to delay the initialization in\n   * some cases. The {@link RungeKuttaIntegrator} and {@link\n   * EmbeddedRungeKuttaIntegrator} classes use the prototyping design\n   * pattern to create the step interpolators by cloning an\n   * uninitialized model and latter initializing the copy.\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "CombinedEventsManager.CombinedEventsManager#52",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/CombinedEventsManager.java",
+        "class_name": "org.apache.commons.math.ode.events.CombinedEventsManager",
+        "signature": "org.apache.commons.math.ode.events.CombinedEventsManager.CombinedEventsManager()",
+        "snippet": "    public CombinedEventsManager() {\n        states      = new ArrayList<EventState>();\n        first       = null;\n        initialized = false;\n    }\n",
+        "begin_line": 52,
+        "end_line": 56,
+        "comment": " Simple constructor.\n     * Create an empty manager\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.AbstractIntegrator#64",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.AbstractIntegrator(java.lang.String)",
+        "snippet": "    public AbstractIntegrator(final String name) {\n        this.name = name;\n        stepHandlers = new ArrayList<StepHandler>();\n        stepStart = Double.NaN;\n        stepSize  = Double.NaN;\n        eventsHandlersManager = new CombinedEventsManager();\n        setMaxEvaluations(-1);\n        resetEvaluations();\n    }\n",
+        "begin_line": 64,
+        "end_line": 72,
+        "comment": " Build an instance.\n     * @param name name of the method\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.setMaxEvaluations#142",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.setMaxEvaluations(int)",
+        "snippet": "    public void setMaxEvaluations(int maxEvaluations) {\n        this.maxEvaluations = (maxEvaluations < 0) ? Integer.MAX_VALUE : maxEvaluations;\n    }\n",
+        "begin_line": 142,
+        "end_line": 144,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.FirstOrderIntegrator": null,
+            "org.apache.commons.math.ode.ODEIntegrator": " Set the maximal number of differential equations function evaluations.\n     * <p>The purpose of this method is to avoid infinite loops which can occur\n     * for example when stringent error constraints are set or when lots of\n     * discrete events are triggered, thus leading to many rejected steps.</p>\n     * @param maxEvaluations maximal number of function evaluations (negative\n     * values are silently converted to maximal integer value, thus representing\n     * almost unlimited evaluations)\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractIntegrator.resetEvaluations#158",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/AbstractIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.AbstractIntegrator",
+        "signature": "org.apache.commons.math.ode.AbstractIntegrator.resetEvaluations()",
+        "snippet": "    protected void resetEvaluations() {\n        evaluations = 0;\n    }\n",
+        "begin_line": 158,
+        "end_line": 160,
+        "comment": " Reset the number of evaluations to zero.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1325
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "DormandPrince853StepInterpolator.DormandPrince853StepInterpolator#231",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/DormandPrince853StepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.DormandPrince853StepInterpolator",
+        "signature": "org.apache.commons.math.ode.nonstiff.DormandPrince853StepInterpolator.DormandPrince853StepInterpolator()",
+        "snippet": "  public DormandPrince853StepInterpolator() {\n    super();\n    yDotKLast = null;\n    v         = null;\n    vectorsInitialized = false;\n  }\n",
+        "begin_line": 231,
+        "end_line": 236,
+        "comment": " Simple constructor.\n   * This constructor builds an instance that is not usable yet, the\n   * {@link #reinitialize} method should be called before using the\n   * instance in order to initialize the internal arrays. This\n   * constructor is used only in order to delay the initialization in\n   * some cases. The {@link EmbeddedRungeKuttaIntegrator} uses the\n   * prototyping design pattern to create the step interpolators by\n   * cloning an uninitialized model and latter initializing the copy.\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1313
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DormandPrince853Integrator.getOrder#239",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/DormandPrince853Integrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.DormandPrince853Integrator.getOrder()",
+        "snippet": "  @Override\n  public int getOrder() {\n    return 8;\n  }\n",
+        "begin_line": 239,
+        "end_line": 242,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator": " Get the order of the method.\n   * @return order of the method\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1313
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RungeKuttaIntegrator.RungeKuttaIntegrator#82",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/RungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.RungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.RungeKuttaIntegrator.RungeKuttaIntegrator(java.lang.String, double[], double[][], double[], org.apache.commons.math.ode.nonstiff.RungeKuttaStepInterpolator, double)",
+        "snippet": "  protected RungeKuttaIntegrator(final String name,\n                                 final double[] c, final double[][] a, final double[] b,\n                                 final RungeKuttaStepInterpolator prototype,\n                                 final double step) {\n    super(name);\n    this.c          = c;\n    this.a          = a;\n    this.b          = b;\n    this.prototype  = prototype;\n    this.step       = Math.abs(step);\n  }\n",
+        "begin_line": 82,
+        "end_line": 92,
+        "comment": " Simple constructor.\n   * Build a Runge-Kutta integrator with the given\n   * step. The default step handler does nothing.\n   * @param name name of the method\n   * @param c time steps from Butcher array (without the first zero)\n   * @param a internal weights from Butcher array (without the first empty row)\n   * @param b propagation weights for the high order method from Butcher array\n   * @param prototype prototype of the step interpolator to use\n   * @param step integration step\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.099
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EmbeddedRungeKuttaIntegrator.EmbeddedRungeKuttaIntegrator#109",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/EmbeddedRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator.EmbeddedRungeKuttaIntegrator(java.lang.String, boolean, double[], double[][], double[], org.apache.commons.math.ode.nonstiff.RungeKuttaStepInterpolator, double, double, double, double)",
+        "snippet": "  protected EmbeddedRungeKuttaIntegrator(final String name, final boolean fsal,\n                                         final double[] c, final double[][] a, final double[] b,\n                                         final RungeKuttaStepInterpolator prototype,\n                                         final double minStep, final double maxStep,\n                                         final double scalAbsoluteTolerance,\n                                         final double scalRelativeTolerance) {\n\n    super(name, minStep, maxStep, scalAbsoluteTolerance, scalRelativeTolerance);\n\n    this.fsal      = fsal;\n    this.c         = c;\n    this.a         = a;\n    this.b         = b;\n    this.prototype = prototype;\n\n    exp = -1.0 / getOrder();\n\n    // set the default values of the algorithm control parameters\n    setSafety(0.9);\n    setMinReduction(0.2);\n    setMaxGrowth(10.0);\n\n  }\n",
+        "begin_line": 109,
+        "end_line": 131,
+        "comment": " Build a Runge-Kutta integrator with the given Butcher array.\n   * @param name name of the method\n   * @param fsal indicate that the method is an <i>fsal</i>\n   * @param c time steps from Butcher array (without the first zero)\n   * @param a internal weights from Butcher array (without the first empty row)\n   * @param b propagation weights for the high order method from Butcher array\n   * @param prototype prototype of the step interpolator to use\n   * @param minStep minimal step (must be positive even for backward\n   * integration), the last step can be smaller than this\n   * @param maxStep maximal step (must be positive even for backward\n   * integration)\n   * @param scalAbsoluteTolerance allowed absolute error\n   * @param scalRelativeTolerance allowed relative error\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0945
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.AdaptiveStepsizeIntegrator#88",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.AdaptiveStepsizeIntegrator(java.lang.String, double, double, double, double)",
+        "snippet": "  public AdaptiveStepsizeIntegrator(final String name,\n                                    final double minStep, final double maxStep,\n                                    final double scalAbsoluteTolerance,\n                                    final double scalRelativeTolerance) {\n\n    super(name);\n\n    this.minStep     = Math.abs(minStep);\n    this.maxStep     = Math.abs(maxStep);\n    this.initialStep = -1.0;\n\n    this.scalAbsoluteTolerance = scalAbsoluteTolerance;\n    this.scalRelativeTolerance = scalRelativeTolerance;\n    this.vecAbsoluteTolerance  = null;\n    this.vecRelativeTolerance  = null;\n\n    resetInternalState();\n\n  }\n",
+        "begin_line": 88,
+        "end_line": 106,
+        "comment": " Build an integrator with the given stepsize bounds.\n   * The default step handler does nothing.\n   * @param name name of the method\n   * @param minStep minimal step (must be positive even for backward\n   * integration), the last step can be smaller than this\n   * @param maxStep maximal step (must be positive even for backward\n   * integration)\n   * @param scalAbsoluteTolerance allowed absolute error\n   * @param scalRelativeTolerance allowed relative error\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0945
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.sanityChecks#165",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.sanityChecks(org.apache.commons.math.ode.FirstOrderDifferentialEquations, double, double[], double, double[])",
+        "snippet": "  @Override\n  protected void sanityChecks(final FirstOrderDifferentialEquations equations,\n                              final double t0, final double[] y0,\n                              final double t, final double[] y)\n      throws IntegratorException {\n\n      super.sanityChecks(equations, t0, y0, t, y);\n\n      if ((vecAbsoluteTolerance != null) && (vecAbsoluteTolerance.length != y0.length)) {\n          throw new IntegratorException(\n                  \"dimensions mismatch: state vector has dimension {0},\" +\n                  \" absolute tolerance vector has dimension {1}\",\n                  y0.length, vecAbsoluteTolerance.length);\n      }\n\n      if ((vecRelativeTolerance != null) && (vecRelativeTolerance.length != y0.length)) {\n          throw new IntegratorException(\n                  \"dimensions mismatch: state vector has dimension {0},\" +\n                  \" relative tolerance vector has dimension {1}\",\n                  y0.length, vecRelativeTolerance.length);\n      }\n\n  }\n",
+        "begin_line": 165,
+        "end_line": 187,
+        "comment": " Perform some sanity checks on the integration parameters.\n   * @param equations differential equations set\n   * @param t0 start time\n   * @param y0 state vector at t0\n   * @param t target time for the integration\n   * @param y placeholder where to put the state vector\n   * @exception IntegratorException if some inconsistency is detected\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0945
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EmbeddedRungeKuttaIntegrator.setSafety#186",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/EmbeddedRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator.setSafety(double)",
+        "snippet": "  public void setSafety(final double safety) {\n    this.safety = safety;\n  }\n",
+        "begin_line": 186,
+        "end_line": 188,
+        "comment": " Set the safety factor for stepsize control.\n   * @param safety safety factor\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0891
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EmbeddedRungeKuttaIntegrator.setMinReduction#378",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/EmbeddedRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator.setMinReduction(double)",
+        "snippet": "  public void setMinReduction(final double minReduction) {\n    this.minReduction = minReduction;\n  }\n",
+        "begin_line": 378,
+        "end_line": 380,
+        "comment": " Set the minimal reduction factor for stepsize control.\n   * @param minReduction minimal reduction factor\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0891
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EmbeddedRungeKuttaIntegrator.setMaxGrowth#392",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/EmbeddedRungeKuttaIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.EmbeddedRungeKuttaIntegrator.setMaxGrowth(double)",
+        "snippet": "  public void setMaxGrowth(final double maxGrowth) {\n    this.maxGrowth = maxGrowth;\n  }\n",
+        "begin_line": 392,
+        "end_line": 394,
+        "comment": " Set the maximal growth factor for stepsize control.\n   * @param maxGrowth maximal growth factor\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0891
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AdaptiveStepsizeIntegrator.resetInternalState#314",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/nonstiff/AdaptiveStepsizeIntegrator.java",
+        "class_name": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator",
+        "signature": "org.apache.commons.math.ode.nonstiff.AdaptiveStepsizeIntegrator.resetInternalState()",
+        "snippet": "  protected void resetInternalState() {\n    stepStart = Double.NaN;\n    stepSize  = Math.sqrt(minStep * maxStep);\n  }\n",
+        "begin_line": 314,
+        "end_line": 317,
+        "comment": " Reset internal state to dummy values. ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0891
+        },
+        "num_failing_tests": 1
+    }
+]

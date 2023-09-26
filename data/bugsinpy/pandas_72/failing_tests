@@ -1,0 +1,135 @@
+coverage run -m pytest pandas/tests/frame/indexing/test_categorical.py::TestDataFrameIndexingCategorical::test_setitem_single_row_categorical
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/frame/indexing/test_categorical.py F                        [100%]
+
+=================================== FAILURES ===================================
+_____ TestDataFrameIndexingCategorical.test_setitem_single_row_categorical _____
+
+self = <test_categorical.TestDataFrameIndexingCategorical object at 0x7f4ea61de250>
+
+    def test_setitem_single_row_categorical(self):
+        # GH 25495
+        df = DataFrame({"Alpha": ["a"], "Numeric": [0]})
+        categories = pd.Categorical(df["Alpha"], categories=["a", "b", "c"])
+>       df.loc[:, "Alpha"] = categories
+
+pandas/tests/frame/indexing/test_categorical.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/indexing.py:637: in __setitem__
+    self._setitem_with_indexer(indexer, value)
+pandas/core/indexing.py:977: in _setitem_with_indexer
+    setter(labels[0], value)
+pandas/core/indexing.py:927: in setter
+    s._data = s._data.setitem(indexer=pi, value=v)
+pandas/core/internals/managers.py:540: in setitem
+    return self.apply("setitem", **kwargs)
+pandas/core/internals/managers.py:419: in apply
+    applied = getattr(b, f)(**kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ObjectBlock: 1 dtype: object, indexer = slice(None, None, None)
+value = [a]
+Categories (3, object): [a, b, c]
+
+    def setitem(self, indexer, value):
+        """
+        Set the value inplace, returning a a maybe different typed block.
+    
+        Parameters
+        ----------
+        indexer : tuple, list-like, array-like, slice
+            The subset of self.values to set
+        value : object
+            The value being set
+    
+        Returns
+        -------
+        Block
+    
+        Notes
+        -----
+        `indexer` is a direct slice/positional indexer. `value` must
+        be a compatible shape.
+        """
+        transpose = self.ndim == 2
+    
+        # coerce None values, if appropriate
+        if value is None:
+            if self.is_numeric:
+                value = np.nan
+    
+        # coerce if block dtype can store value
+        values = self.values
+        if self._can_hold_element(value):
+            # We only get here for non-Extension Blocks, so _try_coerce_args
+            #  is only relevant for DatetimeBlock and TimedeltaBlock
+            if lib.is_scalar(value):
+                value = convert_scalar(values, value)
+    
+        else:
+            # current dtype cannot store value, coerce to common dtype
+            find_dtype = False
+    
+            if hasattr(value, "dtype"):
+                dtype = value.dtype
+                find_dtype = True
+    
+            elif lib.is_scalar(value) and not isna(value):
+                dtype, _ = infer_dtype_from_scalar(value, pandas_dtype=True)
+                find_dtype = True
+    
+            if find_dtype:
+                dtype = find_common_type([values.dtype, dtype])
+                if not is_dtype_equal(self.dtype, dtype):
+                    b = self.astype(dtype)
+                    return b.setitem(indexer, value)
+    
+        # value must be storeable at this moment
+        if is_extension_array_dtype(getattr(value, "dtype", None)):
+            # We need to be careful not to allow through strings that
+            #  can be parsed to EADtypes
+            arr_value = value
+        else:
+            arr_value = np.array(value)
+    
+        # cast the values to a type that can hold nan (if necessary)
+        if not self._can_hold_element(value):
+            dtype, _ = maybe_promote(arr_value.dtype)
+            values = values.astype(dtype)
+    
+        if transpose:
+            values = values.T
+    
+        # length checking
+        check_setitem_lengths(indexer, value, values)
+    
+        if is_empty_indexer(indexer, arr_value):
+            # GH#8669 empty indexers
+            pass
+    
+        elif is_scalar_indexer(indexer, arr_value):
+            # setting a single element for each dim and with a rhs that could
+            #  be e.g. a list; see GH#6043
+            values[indexer] = value
+    
+        # if we are an exact match (ex-broadcasting),
+        # then use the resultant dtype
+        elif (
+            len(arr_value.shape)
+            and arr_value.shape[0] == values.shape[0]
+            and arr_value.size == values.size
+        ):
+            values[indexer] = value
+            try:
+>               values = values.astype(arr_value.dtype)
+E               TypeError: data type not understood
+
+pandas/core/internals/blocks.py:898: TypeError
+=========================== short test summary info ============================
+FAILED pandas/tests/frame/indexing/test_categorical.py::TestDataFrameIndexingCategorical::test_setitem_single_row_categorical
+============================== 1 failed in 0.61s ===============================

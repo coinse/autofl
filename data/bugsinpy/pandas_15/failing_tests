@@ -1,0 +1,57 @@
+coverage run -m pytest pandas/tests/indexes/datetimes/test_datetime.py::TestDatetimeIndex::test_pickle_after_set_freq
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.2, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.15.1
+collected 1 item
+
+pandas/tests/indexes/datetimes/test_datetime.py F                        [100%]
+
+=================================== FAILURES ===================================
+_________________ TestDatetimeIndex.test_pickle_after_set_freq _________________
+
+self = <pandas.tests.indexes.datetimes.test_datetime.TestDatetimeIndex object at 0x7faca4ba8e20>
+
+    def test_pickle_after_set_freq(self):
+        dti = date_range("20130101", periods=3, tz="US/Eastern", name="foo")
+        dti = dti._with_freq(None)
+    
+>       res = tm.round_trip_pickle(dti)
+
+pandas/tests/indexes/datetimes/test_datetime.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/_testing.py:158: in round_trip_pickle
+    return pd.read_pickle(temp_path)
+pandas/io/pickle.py:181: in read_pickle
+    return pickle.load(f)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'pandas.core.indexes.datetimes.DatetimeIndex'>, d = {'name': 'foo'}
+
+    def _new_DatetimeIndex(cls, d):
+        """
+        This is called upon unpickling, rather than the default which doesn't
+        have arguments and breaks __new__
+        """
+        if "data" in d and not isinstance(d["data"], DatetimeIndex):
+            # Avoid need to verify integrity by calling simple_new directly
+            data = d.pop("data")
+            if not isinstance(data, DatetimeArray):
+                # For backward compat with older pickles, we may need to construct
+                #  a DatetimeArray to adapt to the newer _simple_new signature
+                tz = d.pop("tz")
+                freq = d.pop("freq")
+                dta = DatetimeArray._simple_new(data, dtype=tz_to_dtype(tz), freq=freq)
+            else:
+                dta = data
+                for key in ["tz", "freq"]:
+                    # These are already stored in our DatetimeArray; if they are
+                    #  also in the pickle and don't match, we have a problem.
+                    if key in d:
+>                       assert d.pop(key) == getattr(dta, key)
+E                       AssertionError
+
+pandas/core/indexes/datetimes.py:55: AssertionError
+=========================== short test summary info ============================
+FAILED pandas/tests/indexes/datetimes/test_datetime.py::TestDatetimeIndex::test_pickle_after_set_freq
+============================== 1 failed in 0.35s ===============================

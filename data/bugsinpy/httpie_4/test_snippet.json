@@ -1,0 +1,90 @@
+[
+    {
+        "name": "tests.utils.httpbin#31",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils",
+        "signature": "tests.utils.httpbin(path, auth=None, base=os.environ.get('HTTPBIN_URL', 'http://httpbin.org'))",
+        "snippet": "def httpbin(path, auth=None,\n            base=os.environ.get('HTTPBIN_URL', 'http://httpbin.org')):\n    \"\"\"\n    Return a fully-qualified httpbin URL for `path`.\n\n    >>> httpbin('/get')\n    'http://httpbin.org/get'\n\n    >>> httpbin('/get', auth='user:password')\n    'http://user:password@httpbin.org/get'\n\n    \"\"\"\n    if auth:\n        proto, rest = base.split('://', 1)\n        base = proto + '://' + auth + '@' + rest\n    return base.rstrip('/') + path",
+        "begin_line": 31,
+        "end_line": 46,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.TestEnvironment.__init__#61",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils.TestEnvironment",
+        "signature": "tests.utils.TestEnvironment.__init__(self, **kwargs)",
+        "snippet": "    def __init__(self, **kwargs):\n\n        if 'stdout' not in kwargs:\n            kwargs['stdout'] = tempfile.TemporaryFile('w+b')\n\n        if 'stderr' not in kwargs:\n            kwargs['stderr'] = tempfile.TemporaryFile('w+t')\n\n        self.delete_config_dir = False\n        if 'config_dir' not in kwargs:\n            kwargs['config_dir'] = mk_config_dir()\n            self.delete_config_dir = True\n\n        super(TestEnvironment, self).__init__(**kwargs)",
+        "begin_line": 61,
+        "end_line": 74,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.TestEnvironment.__del__#76",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils.TestEnvironment",
+        "signature": "tests.utils.TestEnvironment.__del__(self)",
+        "snippet": "    def __del__(self):\n        if self.delete_config_dir:\n            self._shutil.rmtree(self.config_dir)",
+        "begin_line": 76,
+        "end_line": 78,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.http#81",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils",
+        "signature": "tests.utils.http(*args, **kwargs)",
+        "snippet": "def http(*args, **kwargs):\n    \"\"\"\n    Run HTTPie and capture stderr/out and exit status.\n\n    Invoke `httpie.core.main()` with `args` and `kwargs`,\n    and return a `CLIResponse` subclass instance.\n\n    The return value is either a `StrCLIResponse`, or `BytesCLIResponse`\n    if unable to decode the output.\n\n    The response has the following attributes:\n\n        `stdout` is represented by the instance itself (print r)\n        `stderr`: text written to stderr\n        `exit_status`: the exit status\n        `json`: decoded JSON (if possible) or `None`\n\n    Exceptions are propagated.\n\n    If you pass ``error_exit_ok=True``, then error exit statuses\n    won't result into an exception.\n\n    Example:\n\n    $ http --auth=user:password GET httpbin.org/basic-auth/user/password\n\n        >>> r = http('-a', 'user:pw', httpbin('/basic-auth/user/pw'))\n        >>> type(r) == StrCLIResponse\n        True\n        >>> r.exit_status\n        0\n        >>> r.stderr\n        ''\n        >>> 'HTTP/1.1 200 OK' in r\n        True\n        >>> r.json == {'authenticated': True, 'user': 'user'}\n        True\n\n\n    \"\"\"\n    error_exit_ok = kwargs.pop('error_exit_ok', False)\n    env = kwargs.get('env')\n    if not env:\n        env = kwargs['env'] = TestEnvironment()\n\n    stdout = env.stdout\n    stderr = env.stderr\n\n    args = list(args)\n    if '--debug' not in args and '--traceback' not in args:\n        args = ['--traceback'] + args\n\n    def dump_stderr():\n        stderr.seek(0)\n        sys.stderr.write(stderr.read())\n\n    try:\n        try:\n            exit_status = main(args=args, **kwargs)\n            if '--download' in args:\n                # Let the progress reporter thread finish.\n                time.sleep(.5)\n        except SystemExit:\n            if error_exit_ok:\n                exit_status = httpie.ExitStatus.ERROR\n            else:\n                dump_stderr()\n                raise\n        except Exception:\n            stderr.seek(0)\n            sys.stderr.write(stderr.read())\n            raise\n        else:\n            if exit_status != httpie.ExitStatus.OK and not error_exit_ok:\n                dump_stderr()\n                raise Exception('Unexpected exit status: %s', exit_status)\n\n        stdout.seek(0)\n        stderr.seek(0)\n        output = stdout.read()\n        try:\n            output = output.decode('utf8')\n        except UnicodeDecodeError:\n            # noinspection PyArgumentList\n            r = BytesCLIResponse(output)\n        else:\n            # noinspection PyArgumentList\n            r = StrCLIResponse(output)\n        r.stderr = stderr.read()\n        r.exit_status = exit_status\n\n        if r.exit_status != httpie.ExitStatus.OK:\n            sys.stderr.write(r.stderr)\n\n        return r\n\n    finally:\n        stdout.close()\n        stderr.close()",
+        "begin_line": 81,
+        "end_line": 179,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.dump_stderr#133",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils",
+        "signature": "tests.utils.dump_stderr()",
+        "snippet": "    def dump_stderr():\n        stderr.seek(0)\n        sys.stderr.write(stderr.read())",
+        "begin_line": 133,
+        "end_line": 135,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.StrCLIResponse.json#212",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils.StrCLIResponse",
+        "signature": "tests.utils.StrCLIResponse.json(self)",
+        "snippet": "    def json(self):\n        \"\"\"\n        Return deserialized JSON body, if one included in the output\n        and is parseable.\n\n        \"\"\"\n        if not hasattr(self, '_json'):\n            self._json = None\n            # De-serialize JSON body if possible.\n            if COLOR in self:\n                # Colorized output cannot be parsed.\n                pass\n            elif self.strip().startswith('{'):\n                # Looks like JSON body.\n                self._json = json.loads(self)\n            elif (self.count('Content-Type:') == 1\n                    and 'application/json' in self):\n                # Looks like a whole JSON HTTP message,\n                # try to extract its body.\n                try:\n                    j = self.strip()[self.strip().rindex('\\r\\n\\r\\n'):]\n                except ValueError:\n                    pass\n                else:\n                    try:\n                        self._json = json.loads(j)\n                    except ValueError:\n                        pass\n        return self._json",
+        "begin_line": 212,
+        "end_line": 240,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.utils.mk_config_dir#243",
+        "src_path": "tests/utils.py",
+        "class_name": "tests.utils",
+        "signature": "tests.utils.mk_config_dir()",
+        "snippet": "def mk_config_dir():\n    return tempfile.mkdtemp(prefix='httpie_test_config_dir_')",
+        "begin_line": 243,
+        "end_line": 244,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.test_regressions.test_Host_header_overwrite#7",
+        "src_path": "tests/test_regressions.py",
+        "class_name": "tests.test_regressions",
+        "signature": "tests.test_regressions.test_Host_header_overwrite()",
+        "snippet": "def test_Host_header_overwrite():\n    \"\"\"\n    https://github.com/jakubroztocil/httpie/issues/235\n\n    \"\"\"\n    host = 'httpbin.org'\n    url = 'http://{httpbin_ip}/get'.format(\n        httpbin_ip=socket.gethostbyname(host))\n    r = http('--print=hH', url, 'host:{}'.format(host))\n    assert HTTP_OK in r\n    assert r.lower().count('host:') == 1",
+        "begin_line": 7,
+        "end_line": 17,
+        "comment": "",
+        "is_bug": false
+    }
+]

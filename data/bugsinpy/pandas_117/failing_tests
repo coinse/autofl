@@ -1,0 +1,102 @@
+coverage run -m pytest pandas/tests/series/test_analytics.py::TestSeriesAnalytics::test_count
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/series/test_analytics.py F                                  [100%]
+
+=================================== FAILURES ===================================
+________________________ TestSeriesAnalytics.test_count ________________________
+
+self = <pandas.tests.series.test_analytics.TestSeriesAnalytics object at 0x7f7de980aeb0>
+datetime_series = 2000-01-03         NaN
+2000-01-04    0.630405
+2000-01-05         NaN
+2000-01-06    0.664649
+2000-01-07         NaN
+200...2-08         NaN
+2000-02-09    0.889176
+2000-02-10         NaN
+2000-02-11    1.573173
+Freq: B, Name: ts, dtype: float64
+
+    def test_count(self, datetime_series):
+        assert datetime_series.count() == len(datetime_series)
+    
+        datetime_series[::2] = np.NaN
+    
+        assert datetime_series.count() == np.isfinite(datetime_series).sum()
+    
+        mi = MultiIndex.from_arrays([list("aabbcc"), [1, 2, 2, np.nan, 1, 2]])
+        ts = Series(np.arange(len(mi)), index=mi)
+    
+        left = ts.count(level=1)
+        right = Series([2, 3, 1], index=[1, 2, np.nan])
+        tm.assert_series_equal(left, right)
+    
+        ts.iloc[[0, 3, 5]] = np.nan
+        tm.assert_series_equal(ts.count(level=1), right - 1)
+    
+        # GH29478
+        with pd.option_context("use_inf_as_na", True):
+>           assert pd.Series([pd.Timestamp("1990/1/1")]).count() == 1
+
+pandas/tests/series/test_analytics.py:559: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/series.py:1707: in count
+    return notna(self.array).sum()
+pandas/core/dtypes/missing.py:370: in notna
+    res = isna(obj)
+pandas/core/dtypes/missing.py:123: in isna
+    return _isna(obj)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <DatetimeArray>
+['1990-01-01 00:00:00']
+Length: 1, dtype: datetime64[ns]
+
+    def _isna_old(obj):
+        """
+        Detect missing values, treating None, NaN, INF, -INF as null.
+    
+        Parameters
+        ----------
+        arr: ndarray or object value
+    
+        Returns
+        -------
+        boolean ndarray or boolean
+        """
+        if is_scalar(obj):
+            return libmissing.checknull_old(obj)
+        # hack (for now) because MI registers as ndarray
+        elif isinstance(obj, ABCMultiIndex):
+            raise NotImplementedError("isna is not defined for MultiIndex")
+        elif isinstance(obj, type):
+            return False
+        elif isinstance(obj, (ABCSeries, np.ndarray, ABCIndexClass)):
+            return _isna_ndarraylike_old(obj)
+        elif isinstance(obj, ABCGeneric):
+>           return obj._constructor(obj._data.isna(func=_isna_old))
+E           AttributeError: 'DatetimeArray' object has no attribute '_constructor'
+
+pandas/core/dtypes/missing.py:182: AttributeError
+=============================== warnings summary ===============================
+pandas/util/_test_decorators.py:204
+pandas/util/_test_decorators.py:204
+pandas/util/_test_decorators.py:204
+  /home/user/BugsInPy/temp/projects/pandas/pandas/util/_test_decorators.py:204: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version < LooseVersion(ver_str), reason=reason, *args, **kwds
+
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+  /opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+-- Docs: https://docs.pytest.org/en/latest/warnings.html
+=========================== short test summary info ============================
+FAILED pandas/tests/series/test_analytics.py::TestSeriesAnalytics::test_count
+======================== 1 failed, 6 warnings in 0.44s =========================

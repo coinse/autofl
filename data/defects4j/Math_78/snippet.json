@@ -1,0 +1,414 @@
+[
+    {
+        "name": "BrentSolver.solve#153",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.solve(org.apache.commons.math.analysis.UnivariateRealFunction, double, double)",
+        "snippet": "    public double solve(final UnivariateRealFunction f,\n                        final double min, final double max)\n        throws MaxIterationsExceededException,\n        FunctionEvaluationException {\n\n        clearResult();\n        verifyInterval(min, max);\n\n        double ret = Double.NaN;\n\n        double yMin = f.value(min);\n        double yMax = f.value(max);\n\n        // Verify bracketing\n        double sign = yMin * yMax;\n        if (sign > 0) {\n            // check if either value is close to a zero\n            if (Math.abs(yMin) <= functionValueAccuracy) {\n                setResult(min, 0);\n                ret = min;\n            } else if (Math.abs(yMax) <= functionValueAccuracy) {\n                setResult(max, 0);\n                ret = max;\n            } else {\n                // neither value is close to zero and min and max do not bracket root.\n                throw MathRuntimeException.createIllegalArgumentException(\n                        \"function values at endpoints do not have different signs.  \" +\n                        \"Endpoints: [{0}, {1}], Values: [{2}, {3}]\",\n                        min, max, yMin, yMax);\n            }\n        } else if (sign < 0){\n            // solve using only the first endpoint as initial guess\n            ret = solve(f, min, yMin, max, yMax, min, yMin);\n        } else {\n            // either min or max is a root\n            if (yMin == 0.0) {\n                ret = min;\n            } else {\n                ret = max;\n            }\n        }\n\n        return ret;\n    }\n",
+        "begin_line": 153,
+        "end_line": 196,
+        "comment": "\n     * Find a zero in the given interval.\n     * <p>\n     * Requires that the values of the function at the endpoints have opposite\n     * signs. An <code>IllegalArgumentException</code> is thrown if this is not\n     * the case.</p>\n     *\n     * @param f the function to solve\n     * @param min the lower bound for the interval.\n     * @param max the upper bound for the interval.\n     * @return the value where the function is zero\n     * @throws MaxIterationsExceededException if the maximum iteration count is exceeded\n     * @throws FunctionEvaluationException if an error occurs evaluating the\n     * function\n     * @throws IllegalArgumentException if min is not less than max or the\n     * signs of the values of the function at the endpoints are not opposites\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BrentSolver.solve#215",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.solve(org.apache.commons.math.analysis.UnivariateRealFunction, double, double, double, double, double, double)",
+        "snippet": "    private double solve(final UnivariateRealFunction f,\n                         double x0, double y0,\n                         double x1, double y1,\n                         double x2, double y2)\n    throws MaxIterationsExceededException, FunctionEvaluationException {\n\n        double delta = x1 - x0;\n        double oldDelta = delta;\n\n        int i = 0;\n        while (i < maximalIterationCount) {\n            if (Math.abs(y2) < Math.abs(y1)) {\n                // use the bracket point if is better than last approximation\n                x0 = x1;\n                x1 = x2;\n                x2 = x0;\n                y0 = y1;\n                y1 = y2;\n                y2 = y0;\n            }\n            if (Math.abs(y1) <= functionValueAccuracy) {\n                // Avoid division by very small values. Assume\n                // the iteration has converged (the problem may\n                // still be ill conditioned)\n                setResult(x1, i);\n                return result;\n            }\n            double dx = x2 - x1;\n            double tolerance =\n                Math.max(relativeAccuracy * Math.abs(x1), absoluteAccuracy);\n            if (Math.abs(dx) <= tolerance) {\n                setResult(x1, i);\n                return result;\n            }\n            if ((Math.abs(oldDelta) < tolerance) ||\n                    (Math.abs(y0) <= Math.abs(y1))) {\n                // Force bisection.\n                delta = 0.5 * dx;\n                oldDelta = delta;\n            } else {\n                double r3 = y1 / y0;\n                double p;\n                double p1;\n                // the equality test (x0 == x2) is intentional,\n                // it is part of the original Brent's method,\n                // it should NOT be replaced by proximity test\n                if (x0 == x2) {\n                    // Linear interpolation.\n                    p = dx * r3;\n                    p1 = 1.0 - r3;\n                } else {\n                    // Inverse quadratic interpolation.\n                    double r1 = y0 / y2;\n                    double r2 = y1 / y2;\n                    p = r3 * (dx * r1 * (r1 - r2) - (x1 - x0) * (r2 - 1.0));\n                    p1 = (r1 - 1.0) * (r2 - 1.0) * (r3 - 1.0);\n                }\n                if (p > 0.0) {\n                    p1 = -p1;\n                } else {\n                    p = -p;\n                }\n                if (2.0 * p >= 1.5 * dx * p1 - Math.abs(tolerance * p1) ||\n                        p >= Math.abs(0.5 * oldDelta * p1)) {\n                    // Inverse quadratic interpolation gives a value\n                    // in the wrong direction, or progress is slow.\n                    // Fall back to bisection.\n                    delta = 0.5 * dx;\n                    oldDelta = delta;\n                } else {\n                    oldDelta = delta;\n                    delta = p / p1;\n                }\n            }\n            // Save old X1, Y1\n            x0 = x1;\n            y0 = y1;\n            // Compute new X1, Y1\n            if (Math.abs(delta) > tolerance) {\n                x1 = x1 + delta;\n            } else if (dx > 0.0) {\n                x1 = x1 + 0.5 * tolerance;\n            } else if (dx <= 0.0) {\n                x1 = x1 - 0.5 * tolerance;\n            }\n            y1 = f.value(x1);\n            if ((y1 > 0) == (y2 > 0)) {\n                x2 = x0;\n                y2 = y0;\n                delta = x1 - x0;\n                oldDelta = delta;\n            }\n            i++;\n        }\n        throw new MaxIterationsExceededException(maximalIterationCount);\n    }\n",
+        "begin_line": 215,
+        "end_line": 310,
+        "comment": "\n     * Find a zero starting search according to the three provided points.\n     * @param f the function to solve\n     * @param x0 old approximation for the root\n     * @param y0 function value at the approximation for the root\n     * @param x1 last calculated approximation for the root\n     * @param y1 function value at the last calculated approximation\n     * for the root\n     * @param x2 bracket point (must be set to x0 if no bracket point is\n     * known, this will force starting with linear interpolation)\n     * @param y2 function value at the bracket point.\n     * @return the value where the function is zero\n     * @throws MaxIterationsExceededException if the maximum iteration count\n     * is exceeded\n     * @throws FunctionEvaluationException if an error occurs evaluating\n     * the function\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DummyStepInterpolator.computeInterpolatedStateAndDerivatives#96",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/DummyStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.DummyStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.DummyStepInterpolator.computeInterpolatedStateAndDerivatives(double, double)",
+        "snippet": "  @Override\n  protected void computeInterpolatedStateAndDerivatives(final double theta, final double oneMinusThetaH)\n    throws DerivativeException {\n      System.arraycopy(currentState, 0, interpolatedState, 0, currentState.length);\n  }\n",
+        "begin_line": 96,
+        "end_line": 100,
+        "comment": " Compute the state at the interpolated time.\n   * In this class, this method does nothing: the interpolated state\n   * is always the state at the end of the current step.\n   * @param theta normalized interpolation abscissa within the step\n   * (theta is zero at the previous time step and one at the current time step)\n   * @param oneMinusThetaH time gap between the interpolated time and\n   * the current time\n   * @throws DerivativeException this exception is propagated to the caller if the\n   * underlying user function triggers one\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DummyStepInterpolator.DummyStepInterpolator#65",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/DummyStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.DummyStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.DummyStepInterpolator.DummyStepInterpolator(double[], boolean)",
+        "snippet": "  public DummyStepInterpolator(final double[] y, final boolean forward) {\n    super(y, forward);\n  }\n",
+        "begin_line": 65,
+        "end_line": 67,
+        "comment": " Simple constructor.\n   * @param y reference to the integrator array holding the state at\n   * the end of the step\n   * @param forward integration direction indicator\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2236
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.AbstractStepInterpolator#107",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.AbstractStepInterpolator(double[], boolean)",
+        "snippet": "  protected AbstractStepInterpolator(final double[] y, final boolean forward) {\n\n    previousTime      = Double.NaN;\n    currentTime       = Double.NaN;\n    h                 = Double.NaN;\n    interpolatedTime  = Double.NaN;\n\n    currentState            = y;\n    interpolatedState       = new double[y.length];\n    interpolatedDerivatives = new double[y.length];\n\n    finalized         = false;\n    this.forward      = forward;\n    this.dirtyState   = true;\n\n  }\n",
+        "begin_line": 107,
+        "end_line": 122,
+        "comment": " Simple constructor.\n   * @param y reference to the integrator array holding the state at\n   * the end of the step\n   * @param forward integration direction indicator\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1961
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.evaluateStep#167",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.evaluateStep(org.apache.commons.math.ode.sampling.StepInterpolator)",
+        "snippet": "    public boolean evaluateStep(final StepInterpolator interpolator)\n        throws DerivativeException, EventException, ConvergenceException {\n\n        try {\n\n            forward = interpolator.isForward();\n            final double t1 = interpolator.getCurrentTime();\n            final int    n  = Math.max(1, (int) Math.ceil(Math.abs(t1 - t0) / maxCheckInterval));\n            final double h  = (t1 - t0) / n;\n\n            double ta = t0;\n            double ga = g0;\n            double tb = t0 + (interpolator.isForward() ? convergence : -convergence);\n            for (int i = 0; i < n; ++i) {\n\n                // evaluate handler value at the end of the substep\n                tb += h;\n                interpolator.setInterpolatedTime(tb);\n                final double gb = handler.g(tb, interpolator.getInterpolatedState());\n\n                // check events occurrence\n                if (g0Positive ^ (gb >= 0)) {\n                    // there is a sign change: an event is expected during this step\n\n                        // this is a corner case:\n                        // - there was an event near ta,\n                        // - there is another event between ta and tb\n                        // - when ta was computed, convergence was reached on the \"wrong side\" of the interval\n                        // this implies that the real sign of ga is the same as gb, so we need to slightly\n                        // shift ta to make sure ga and gb get opposite signs and the solver won't complain\n                        // about bracketing\n                            // this should never happen\n                         \n                    // variation direction, with respect to the integration direction\n                    increasing = gb >= ga;\n\n                    final UnivariateRealFunction f = new UnivariateRealFunction() {\n                        public double value(final double t) throws FunctionEvaluationException {\n                            try {\n                                interpolator.setInterpolatedTime(t);\n                                return handler.g(t, interpolator.getInterpolatedState());\n                            } catch (DerivativeException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            } catch (EventException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            }\n                        }\n                    };\n                    final BrentSolver solver = new BrentSolver();\n                    solver.setAbsoluteAccuracy(convergence);\n                    solver.setMaximalIterationCount(maxIterationCount);\n                    final double root = (ta <= tb) ? solver.solve(f, ta, tb) : solver.solve(f, tb, ta);\n                    if ((Math.abs(root - ta) <= convergence) &&\n                         (Math.abs(root - previousEventTime) <= convergence)) {\n                        // we have either found nothing or found (again ?) a past event, we simply ignore it\n                        ta = tb;\n                        ga = gb;\n                    } else if (Double.isNaN(previousEventTime) ||\n                               (Math.abs(previousEventTime - root) > convergence)) {\n                        pendingEventTime = root;\n                        if (pendingEvent && (Math.abs(t1 - pendingEventTime) <= convergence)) {\n                            // we were already waiting for this event which was\n                            // found during a previous call for a step that was\n                            // rejected, this step must now be accepted since it\n                            // properly ends exactly at the event occurrence\n                            return false;\n                        }\n                        // either we were not waiting for the event or it has\n                        // moved in such a way the step cannot be accepted\n                        pendingEvent = true;\n                        return true;\n                    }\n\n                } else {\n                    // no sign change: there is no event for now\n                    ta = tb;\n                    ga = gb;\n                }\n\n            }\n\n            // no event during the whole step\n            pendingEvent     = false;\n            pendingEventTime = Double.NaN;\n            return false;\n\n        } catch (FunctionEvaluationException e) {\n            final Throwable cause = e.getCause();\n            if ((cause != null) && (cause instanceof DerivativeException)) {\n                throw (DerivativeException) cause;\n            } else if ((cause != null) && (cause instanceof EventException)) {\n                throw (EventException) cause;\n            }\n            throw new EventException(e);\n        }\n\n    }\n",
+        "begin_line": 167,
+        "end_line": 263,
+        "comment": " Evaluate the impact of the proposed step on the event handler.\n     * @param interpolator step interpolator for the proposed step\n     * @return true if the event handler triggers an event before\n     * the end of the proposed step (this implies the step should be\n     * rejected)\n     * @exception DerivativeException if the interpolator fails to\n     * compute the switching function somewhere within the step\n     * @exception EventException if the switching function\n     * cannot be evaluated\n     * @exception ConvergenceException if an event cannot be located\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1091
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.getEventTime#270",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.getEventTime()",
+        "snippet": "    public double getEventTime() {\n        return pendingEventTime;\n    }\n",
+        "begin_line": 270,
+        "end_line": 272,
+        "comment": " Get the occurrence time of the event triggered in the current\n     * step.\n     * @return occurrence time of the event triggered in the current\n     * step.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1091
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.stepAccepted#282",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.stepAccepted(double, double[])",
+        "snippet": "    public void stepAccepted(final double t, final double[] y)\n        throws EventException {\n\n        t0 = t;\n        g0 = handler.g(t, y);\n\n        if (pendingEvent) {\n            // force the sign to its value \"just after the event\"\n            previousEventTime = t;\n            g0Positive        = increasing;\n            nextAction        = handler.eventOccurred(t, y, !(increasing ^ forward));\n        } else {\n            g0Positive = g0 >= 0;\n            nextAction = EventHandler.CONTINUE;\n        }\n    }\n",
+        "begin_line": 282,
+        "end_line": 297,
+        "comment": " Acknowledge the fact the step has been accepted by the integrator.\n     * @param t value of the independent <i>time</i> variable at the\n     * end of the step\n     * @param y array containing the current value of the state vector\n     * at the end of the step\n     * @exception EventException if the value of the event\n     * handler cannot be evaluated\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1091
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "UnivariateRealSolverImpl.setResult#140",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.setResult(double, int)",
+        "snippet": "    protected final void setResult(final double newResult, final int iterationCount) {\n        this.result         = newResult;\n        this.iterationCount = iterationCount;\n        this.resultComputed = true;\n    }\n",
+        "begin_line": 140,
+        "end_line": 144,
+        "comment": "\n     * Convenience function for implementations.\n     *\n     * @param newResult the result to set\n     * @param iterationCount the iteration count to set\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1091
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.value#204",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.Anonymous-918bb128-3336-4971-8c82-4b3ae3a02954.value(double)",
+        "snippet": "                        public double value(final double t) throws FunctionEvaluationException {\n                            try {\n                                interpolator.setInterpolatedTime(t);\n                                return handler.g(t, interpolator.getInterpolatedState());\n                            } catch (DerivativeException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            } catch (EventException e) {\n                                throw new FunctionEvaluationException(e, t);\n                            }\n                        }\n",
+        "begin_line": 204,
+        "end_line": 213,
+        "comment": "",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "UnivariateRealSolverImpl.UnivariateRealSolverImpl#91",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.UnivariateRealSolverImpl(int, double)",
+        "snippet": "    protected UnivariateRealSolverImpl(final int defaultMaximalIterationCount,\n                                       final double defaultAbsoluteAccuracy) {\n        super(defaultMaximalIterationCount, defaultAbsoluteAccuracy);\n        this.defaultFunctionValueAccuracy = 1.0e-15;\n        this.functionValueAccuracy = defaultFunctionValueAccuracy;\n    }\n",
+        "begin_line": 91,
+        "end_line": 96,
+        "comment": "\n     * Construct a solver with given iteration count and accuracy.\n     *\n     * @param defaultAbsoluteAccuracy maximum absolute error\n     * @param defaultMaximalIterationCount maximum number of iterations\n     * @throws IllegalArgumentException if f is null or the\n     * defaultAbsoluteAccuracy is not valid\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "UnivariateRealSolverImpl.clearResult#164",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.clearResult()",
+        "snippet": "    protected final void clearResult() {\n        this.iterationCount = 0;\n        this.resultComputed = false;\n    }\n",
+        "begin_line": 164,
+        "end_line": 167,
+        "comment": "\n     * Convenience function for implementations.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "UnivariateRealSolverImpl.verifyInterval#207",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/UnivariateRealSolverImpl.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl",
+        "signature": "org.apache.commons.math.analysis.solvers.UnivariateRealSolverImpl.verifyInterval(double, double)",
+        "snippet": "    protected void verifyInterval(final double lower, final double upper) {\n        if (lower >= upper) {\n            throw MathRuntimeException.createIllegalArgumentException(\n                    \"endpoints do not specify an interval: [{0}, {1}]\",\n                    lower, upper);\n        }\n    }\n",
+        "begin_line": 207,
+        "end_line": 213,
+        "comment": "\n     * Verifies that the endpoints specify an interval,\n     * throws IllegalArgumentException if not\n     *\n     * @param lower  lower endpoint\n     * @param upper upper endpoint\n     * @throws IllegalArgumentException\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BrentSolver.BrentSolver#55",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/analysis/solvers/BrentSolver.java",
+        "class_name": "org.apache.commons.math.analysis.solvers.BrentSolver",
+        "signature": "org.apache.commons.math.analysis.solvers.BrentSolver.BrentSolver()",
+        "snippet": "    public BrentSolver() {\n        super(100, 1E-6);\n    }\n",
+        "begin_line": 55,
+        "end_line": 57,
+        "comment": "\n     * Construct a solver.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.ConvergingAlgorithmImpl#60",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.ConvergingAlgorithmImpl(int, double)",
+        "snippet": "    protected ConvergingAlgorithmImpl(final int defaultMaximalIterationCount,\n                                      final double defaultAbsoluteAccuracy) {\n        this.defaultAbsoluteAccuracy = defaultAbsoluteAccuracy;\n        this.defaultRelativeAccuracy = 1.0e-14;\n        this.absoluteAccuracy = defaultAbsoluteAccuracy;\n        this.relativeAccuracy = defaultRelativeAccuracy;\n        this.defaultMaximalIterationCount = defaultMaximalIterationCount;\n        this.maximalIterationCount = defaultMaximalIterationCount;\n        this.iterationCount = 0;\n    }\n",
+        "begin_line": 60,
+        "end_line": 69,
+        "comment": "\n     * Construct an algorithm with given iteration count and accuracy.\n     *\n     * @param defaultAbsoluteAccuracy maximum absolute error\n     * @param defaultMaximalIterationCount maximum number of iterations\n     * @throws IllegalArgumentException if f is null or the\n     * defaultAbsoluteAccuracy is not valid\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.setAbsoluteAccuracy#77",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.setAbsoluteAccuracy(double)",
+        "snippet": "    public void setAbsoluteAccuracy(double accuracy) {\n        absoluteAccuracy = accuracy;\n    }\n",
+        "begin_line": 77,
+        "end_line": 79,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ConvergingAlgorithm": "\n     * Set the absolute accuracy.\n     * <p>\n     * The default is usually chosen so that results in the interval\n     * -10..-0.1 and +0.1..+10 can be found with a reasonable accuracy. If the\n     * expected absolute value of your results is of much smaller magnitude, set\n     * this to a smaller value.</p>\n     * <p>\n     * Algorithms are advised to do a plausibility check with the relative\n     * accuracy, but clients should not rely on this.</p>\n     *\n     * @param accuracy the accuracy.\n     * @throws IllegalArgumentException if the accuracy can't be achieved by\n     * the solver or is otherwise deemed unreasonable.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ConvergingAlgorithmImpl.setMaximalIterationCount#92",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ConvergingAlgorithmImpl.java",
+        "class_name": "org.apache.commons.math.ConvergingAlgorithmImpl",
+        "signature": "org.apache.commons.math.ConvergingAlgorithmImpl.setMaximalIterationCount(int)",
+        "snippet": "    public void setMaximalIterationCount(int count) {\n        maximalIterationCount = count;\n    }\n",
+        "begin_line": 92,
+        "end_line": 94,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ConvergingAlgorithm": "\n     * Set the upper limit for the number of iterations.\n     * <p>\n     * Usually a high iteration count indicates convergence problems. However,\n     * the \"reasonable value\" varies widely for different algorithms. Users are\n     * advised to use the default value supplied by the algorithm.</p>\n     * <p>\n     * A {@link ConvergenceException} will be thrown if this number\n     * is exceeded.</p>\n     *\n     * @param count maximum number of iterations\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.1085
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.reinitializeBegin#149",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.reinitializeBegin(double, double[])",
+        "snippet": "    public void reinitializeBegin(final double tStart, final double[] yStart)\n        throws EventException {\n        t0 = tStart;\n        g0 = handler.g(tStart, yStart);\n        g0Positive = g0 >= 0;\n    }\n",
+        "begin_line": 149,
+        "end_line": 154,
+        "comment": " Reinitialize the beginning of the step.\n     * @param tStart value of the independent <i>time</i> variable at the\n     * beginning of the step\n     * @param yStart array containing the current value of the state vector\n     * at the beginning of the step\n     * @exception EventException if the event handler\n     * value cannot be evaluated at the beginning of the step\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1066
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.isForward#250",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.isForward()",
+        "snippet": "  public boolean isForward() {\n    return forward;\n  }\n",
+        "begin_line": 250,
+        "end_line": 252,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": " Check if the natural integration direction is forward.\n   * <p>This method provides the integration direction as specified by\n   * the integrator itself, it avoid some nasty problems in\n   * degenerated cases like null steps due to cancellation at step\n   * initialization, step control or discrete events\n   * triggering.</p>\n   * @return true if the integration variable (time) increases during\n   * integration\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.106
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.getCurrentTime#234",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.getCurrentTime()",
+        "snippet": "  public double getCurrentTime() {\n    return currentTime;\n  }\n",
+        "begin_line": 234,
+        "end_line": 236,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Get the current grid point time.\n   * @return current grid point time\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1031
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EventState.EventState#94",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/events/EventState.java",
+        "class_name": "org.apache.commons.math.ode.events.EventState",
+        "signature": "org.apache.commons.math.ode.events.EventState.EventState(org.apache.commons.math.ode.events.EventHandler, double, double, int)",
+        "snippet": "    public EventState(final EventHandler handler, final double maxCheckInterval,\n                      final double convergence, final int maxIterationCount) {\n        this.handler           = handler;\n        this.maxCheckInterval  = maxCheckInterval;\n        this.convergence       = Math.abs(convergence);\n        this.maxIterationCount = maxIterationCount;\n\n        // some dummy values ...\n        t0                = Double.NaN;\n        g0                = Double.NaN;\n        g0Positive        = true;\n        pendingEvent      = false;\n        pendingEventTime  = Double.NaN;\n        previousEventTime = Double.NaN;\n        increasing        = true;\n        nextAction        = EventHandler.CONTINUE;\n\n    }\n",
+        "begin_line": 94,
+        "end_line": 111,
+        "comment": " Simple constructor.\n     * @param handler event handler\n     * @param maxCheckInterval maximal time interval between switching\n     * function checks (this interval prevents missing sign changes in\n     * case the integration steps becomes very large)\n     * @param convergence convergence threshold in the event time search\n     * @param maxIterationCount upper limit of the iteration count in\n     * the event time search\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1031
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.getInterpolatedState#269",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.getInterpolatedState()",
+        "snippet": "  public double[] getInterpolatedState() throws DerivativeException {\n\n      // lazy evaluation of the state\n      if (dirtyState) {\n          final double oneMinusThetaH = currentTime - interpolatedTime;\n          final double theta = (h == 0) ? 0 : (h - oneMinusThetaH) / h;\n          computeInterpolatedStateAndDerivatives(theta, oneMinusThetaH);\n          dirtyState = false;\n      }\n\n      return interpolatedState;\n\n  }\n",
+        "begin_line": 269,
+        "end_line": 281,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Get the state vector of the interpolated point.\n   * <p>The returned vector is a reference to a reused array, so\n   * it should not be modified and it should be copied if it needs\n   * to be preserved across several calls.</p>\n   * @return state vector at time {@link #getInterpolatedTime}\n   * @see #getInterpolatedDerivatives()\n   * @throws DerivativeException if this call induces an automatic\n   * step finalization that throws one\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.1026
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.shift#210",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.shift()",
+        "snippet": "  public void shift() {\n    previousTime = currentTime;\n  }\n",
+        "begin_line": 210,
+        "end_line": 212,
+        "comment": " Shift one step forward.\n   * Copy the current time into the previous time, hence preparing the\n   * interpolator for future calls to {@link #storeTime storeTime}\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0985
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.storeTime#217",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.storeTime(double)",
+        "snippet": "  public void storeTime(final double t) {\n\n    currentTime = t;\n    h           = currentTime - previousTime;\n    setInterpolatedTime(t);\n\n    // the step is not finalized anymore\n    finalized  = false;\n\n  }\n",
+        "begin_line": 217,
+        "end_line": 226,
+        "comment": " Store the current step time.\n   * @param t current time\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0985
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractStepInterpolator.setInterpolatedTime#244",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/ode/sampling/AbstractStepInterpolator.java",
+        "class_name": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator",
+        "signature": "org.apache.commons.math.ode.sampling.AbstractStepInterpolator.setInterpolatedTime(double)",
+        "snippet": "  public void setInterpolatedTime(final double time) {\n      interpolatedTime = time;\n      dirtyState       = true;\n  }\n",
+        "begin_line": 244,
+        "end_line": 247,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.ode.sampling.StepInterpolator": "\n   * Set the time of the interpolated point.\n   * <p>Setting the time outside of the current step is now allowed, but\n   * should be used with care since the accuracy of the interpolator will\n   * probably be very poor far from this step. This allowance has been\n   * added to simplify implementation of search algorithms near the\n   * step endpoints.</p>\n   * <p>Setting the time changes the instance internal state. If a\n   * specific state must be preserved, a copy of the instance must be\n   * created using {@link #copy()}.</p>\n   * @param time time of the interpolated point\n   "
+        },
+        "susp": {
+            "ochiai_susp": 0.0985
+        },
+        "num_failing_tests": 1
+    }
+]

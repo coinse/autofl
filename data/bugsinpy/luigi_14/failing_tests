@@ -1,0 +1,68 @@
+coverage run -m pytest test/central_planner_test.py::CentralPlannerTest::test_no_crash_on_only_disable_hard_timeout
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+benchmark: 3.2.3 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/user/BugsInPy/temp/projects/luigi
+plugins: benchmark-3.2.3, requests-mock-1.8.0, sanic-1.6.1, sugar-0.9.3, cov-2.9.0
+collected 1 item
+
+test/central_planner_test.py F                                           [100%]
+
+=================================== FAILURES ===================================
+________ CentralPlannerTest.test_no_crash_on_only_disable_hard_timeout _________
+
+self = <central_planner_test.CentralPlannerTest testMethod=test_no_crash_on_only_disable_hard_timeout>
+
+    def test_no_crash_on_only_disable_hard_timeout(self):
+        """
+        Scheduler shouldn't crash with only disable_hard_timeout
+    
+        There was some failure happening when disable_hard_timeout was set but
+        disable_failures was not.
+        """
+        self.sch = CentralPlannerScheduler(retry_delay=5,
+                                           disable_hard_timeout=100)
+        self.setTime(1)
+        self.sch.add_worker(WORKER, [])
+        self.sch.ping(worker=WORKER)
+    
+        self.setTime(2)
+        self.sch.add_task(worker=WORKER, task_id='A')
+        self.sch.add_task(worker=WORKER, task_id='B', deps=['A'])
+        self.assertEqual(self.sch.get_work(worker=WORKER)['task_id'], 'A')
+>       self.sch.add_task(worker=WORKER, task_id='A', status=FAILED)
+
+test/central_planner_test.py:1147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+luigi/scheduler.py:635: in add_task
+    self._state.set_status(task, PENDING if status == SUSPENDED else status, self._config)
+luigi/scheduler.py:388: in set_status
+    if task.has_excessive_failures():
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Task({'id': 'A', 'stakeholders': {'myworker'}, 'workers': {'myworker'}, 'deps': set(), 'status': 'RUNNING', 'time': 2,...ct at 0x7f7cfd67a370>, 'tracking_url': None, 'status_message': None, 'scheduler_disable_time': None, 'runnable': True})
+
+    def has_excessive_failures(self):
+        if (self.failures.first_failure_time is not None and
+                self.disable_hard_timeout):
+            if (time.time() >= self.failures.first_failure_time +
+                    self.disable_hard_timeout):
+                return True
+    
+>       if self.failures.num_failures() >= self.disable_failures:
+E       TypeError: '>=' not supported between instances of 'int' and 'NoneType'
+
+luigi/scheduler.py:208: TypeError
+=============================== warnings summary ===============================
+luigi/parameter.py:28
+  /home/user/BugsInPy/temp/projects/luigi/luigi/parameter.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.9 it will stop working
+    from collections import OrderedDict, Mapping
+
+/opt/conda/envs/6fa2c59a2daef6c05cecb8364ce5a579/lib/python3.8/site-packages/nose/importer.py:12
+  /opt/conda/envs/6fa2c59a2daef6c05cecb8364ce5a579/lib/python3.8/site-packages/nose/importer.py:12: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
+    from imp import find_module, load_module, acquire_lock, release_lock
+
+-- Docs: https://docs.pytest.org/en/latest/warnings.html
+=========================== short test summary info ============================
+FAILED test/central_planner_test.py::CentralPlannerTest::test_no_crash_on_only_disable_hard_timeout
+======================== 1 failed, 2 warnings in 0.35s =========================

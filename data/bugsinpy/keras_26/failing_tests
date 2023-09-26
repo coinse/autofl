@@ -1,0 +1,513 @@
+coverage run -m pytest tests/keras/backend/backend_test.py::TestBackend::test_rnn_additional_states
+============================= test session starts ==============================
+platform linux -- Python 3.7.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1 -- /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/bin/python
+cachedir: .pytest_cache
+rootdir: /home/user/BugsInPy/temp/projects/keras, inifile: pytest.ini
+plugins: forked-1.1.3, flaky-3.6.1, xdist-1.32.0, httpbin-1.0.0
+gw0 I / gw1 I
+
+[gw0] linux Python 3.7.3 cwd: /home/user/BugsInPy/temp/projects/keras
+
+[gw1] linux Python 3.7.3 cwd: /home/user/BugsInPy/temp/projects/keras
+
+[gw0] Python 3.7.3 (default, Mar 27 2019, 22:11:17)  -- [GCC 7.3.0]
+
+[gw1] Python 3.7.3 (default, Mar 27 2019, 22:11:17)  -- [GCC 7.3.0]
+gw0 [1] / gw1 [1]
+
+scheduling tests via LoadScheduling
+
+tests/keras/backend/backend_test.py::TestBackend::test_rnn_additional_states 
+[gw0] [100%] FAILED tests/keras/backend/backend_test.py::TestBackend::test_rnn_additional_states 
+
+=================================== FAILURES ===================================
+____________________ TestBackend.test_rnn_additional_states ____________________
+[gw0] linux -- Python 3.7.3 /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/bin/python
+
+graph = <tensorflow.python.framework.ops.Graph object at 0x7fea8ddd1f98>
+node_def = name: "while_2/Select_2"
+op: "Select"
+attr {
+  key: "T"
+  value {
+    type: DT_FLOAT
+  }
+}
+
+inputs = [<tf.Tensor 'while_2/Tile:0' shape=(4, 3) dtype=bool>, <tf.Tensor 'while_2/concat:0' shape=(4, 6) dtype=float32>, <tf.Tensor 'while_2/Identity_3:0' shape=(4, 6) dtype=float32>]
+control_inputs = []
+
+    def _create_c_op(graph, node_def, inputs, control_inputs):
+      """Creates a TF_Operation.
+    
+      Args:
+        graph: a `Graph`.
+        node_def: `node_def_pb2.NodeDef` for the operation to create.
+        inputs: A list of `Tensor`s (corresponding to scalar inputs) and lists of
+          `Tensor`s (corresponding to sequence inputs, e.g. "int64 * N",
+          "list(int64)"). The length of the list should be equal to the number of
+          inputs specified by this operation's op def.
+        control_inputs: A list of `Operation`s to set as control dependencies.
+    
+      Returns:
+        A wrapped TF_Operation*.
+      """
+      # pylint: disable=protected-access
+      op_desc = c_api.TF_NewOperation(graph._c_graph, compat.as_str(node_def.op),
+                                      compat.as_str(node_def.name))
+      if node_def.device:
+        c_api.TF_SetDevice(op_desc, compat.as_str(node_def.device))
+      # Add inputs
+      for op_input in inputs:
+        if isinstance(op_input, (list, tuple)):
+          c_api.TF_AddInputList(op_desc, [t._as_tf_output() for t in op_input])
+        else:
+          c_api.TF_AddInput(op_desc, op_input._as_tf_output())
+    
+      # Add control inputs
+      for control_input in control_inputs:
+        c_api.TF_AddControlInput(op_desc, control_input._c_op)
+      # pylint: enable=protected-access
+    
+      # Add attrs
+      for name, attr_value in node_def.attr.items():
+        serialized = attr_value.SerializeToString()
+        # TODO(skyewm): this creates and deletes a new TF_Status for every attr.
+        # It might be worth creating a convenient way to re-use the same status.
+        c_api.TF_SetAttrValueProto(op_desc, compat.as_str(name), serialized)
+    
+      try:
+>       c_op = c_api.TF_FinishOperation(op_desc)
+E       tensorflow.python.framework.errors_impl.InvalidArgumentError: Dimension 1 in both shapes must be equal, but are 6 and 3. Shapes are [4,6] and [4,3]. for 'while_2/Select_2' (op: 'Select') with input shapes: [4,3], [4,6], [4,6].
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/ops.py:1864: InvalidArgumentError
+
+During handling of the above exception, another exception occurred:
+
+self = <backend_test.TestBackend object at 0x7fead0426588>
+
+    def test_rnn_additional_states(self):
+        # implement a simple RNN with an additional state
+        # whose shape is different from that of the output
+        num_samples = 4
+        input_dim = 5
+        output_dim = 3
+        timesteps = 6
+    
+        _, x = parse_shape_or_val((num_samples, timesteps, input_dim))
+        _, h0 = parse_shape_or_val((num_samples, output_dim))
+        _, wi = parse_shape_or_val((input_dim, output_dim))
+        _, wh = parse_shape_or_val((output_dim, output_dim))
+        mask = np.random.randint(2, size=(num_samples, timesteps))
+    
+        x_k = K.variable(x)
+        h0_k = [K.variable(h0), K.variable(np.concatenate([h0, h0], axis=-1))]
+        wi_k = K.variable(wi)
+        wh_k = K.variable(wh)
+        mask_k = K.variable(mask)
+    
+        def rnn_fn(x_k, h_k):
+            assert len(h_k) == 2
+            y_k = K.dot(x_k, wi_k) + K.dot(h_k[0], wh_k)
+            return y_k, [y_k, K.concatenate([y_k, y_k], axis=-1)]
+    
+        # test default setup
+        last_output_list = []
+        outputs_list = []
+        state_list = []
+    
+        kwargs_list = [
+            {'go_backwards': False, 'mask': None},
+            {'go_backwards': False, 'mask': None, 'unroll': True, 'input_length': timesteps},
+            {'go_backwards': True, 'mask': None},
+            {'go_backwards': True, 'mask': None, 'unroll': True, 'input_length': timesteps},
+            {'go_backwards': False, 'mask': mask_k},
+            {'go_backwards': False, 'mask': mask_k, 'unroll': True, 'input_length': timesteps},
+        ]
+    
+        for (i, kwargs) in enumerate(kwargs_list):
+            last_y1, y1, h1 = reference_operations.rnn(x, [wi, wh, None], h0, **kwargs)
+>           last_y2, y2, h2 = K.rnn(rnn_fn, x_k, h0_k, **kwargs)
+
+tests/keras/backend/backend_test.py:643: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+keras/backend/tensorflow_backend.py:2906: in rnn
+    swap_memory=True)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/ops/control_flow_ops.py:3501: in while_loop
+    return_same_structure)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/ops/control_flow_ops.py:3012: in BuildLoop
+    pred, body, original_loop_vars, loop_vars, shape_invariants)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/ops/control_flow_ops.py:2937: in _BuildLoop
+    body_result = body(*packed_vars_for_body)
+keras/backend/tensorflow_backend.py:2874: in _step
+    new_states = [tf.where(tiled_mask_t, new_states[i], states[i]) for i in range(len(states))]
+keras/backend/tensorflow_backend.py:2874: in <listcomp>
+    new_states = [tf.where(tiled_mask_t, new_states[i], states[i]) for i in range(len(states))]
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/deprecation.py:324: in new_func
+    return func(*args, **kwargs)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/dispatch.py:180: in wrapper
+    return target(*args, **kwargs)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/ops/array_ops.py:3270: in where
+    return gen_math_ops.select(condition=condition, x=x, y=y, name=name)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/ops/gen_math_ops.py:9226: in select
+    "Select", condition=condition, t=x, e=y, name=name)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/op_def_library.py:788: in _apply_op_helper
+    op_def=op_def)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/deprecation.py:507: in new_func
+    return func(*args, **kwargs)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/ops.py:3616: in create_op
+    op_def=op_def)
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/ops.py:2027: in __init__
+    control_input_ops)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+graph = <tensorflow.python.framework.ops.Graph object at 0x7fea8ddd1f98>
+node_def = name: "while_2/Select_2"
+op: "Select"
+attr {
+  key: "T"
+  value {
+    type: DT_FLOAT
+  }
+}
+
+inputs = [<tf.Tensor 'while_2/Tile:0' shape=(4, 3) dtype=bool>, <tf.Tensor 'while_2/concat:0' shape=(4, 6) dtype=float32>, <tf.Tensor 'while_2/Identity_3:0' shape=(4, 6) dtype=float32>]
+control_inputs = []
+
+    def _create_c_op(graph, node_def, inputs, control_inputs):
+      """Creates a TF_Operation.
+    
+      Args:
+        graph: a `Graph`.
+        node_def: `node_def_pb2.NodeDef` for the operation to create.
+        inputs: A list of `Tensor`s (corresponding to scalar inputs) and lists of
+          `Tensor`s (corresponding to sequence inputs, e.g. "int64 * N",
+          "list(int64)"). The length of the list should be equal to the number of
+          inputs specified by this operation's op def.
+        control_inputs: A list of `Operation`s to set as control dependencies.
+    
+      Returns:
+        A wrapped TF_Operation*.
+      """
+      # pylint: disable=protected-access
+      op_desc = c_api.TF_NewOperation(graph._c_graph, compat.as_str(node_def.op),
+                                      compat.as_str(node_def.name))
+      if node_def.device:
+        c_api.TF_SetDevice(op_desc, compat.as_str(node_def.device))
+      # Add inputs
+      for op_input in inputs:
+        if isinstance(op_input, (list, tuple)):
+          c_api.TF_AddInputList(op_desc, [t._as_tf_output() for t in op_input])
+        else:
+          c_api.TF_AddInput(op_desc, op_input._as_tf_output())
+    
+      # Add control inputs
+      for control_input in control_inputs:
+        c_api.TF_AddControlInput(op_desc, control_input._c_op)
+      # pylint: enable=protected-access
+    
+      # Add attrs
+      for name, attr_value in node_def.attr.items():
+        serialized = attr_value.SerializeToString()
+        # TODO(skyewm): this creates and deletes a new TF_Status for every attr.
+        # It might be worth creating a convenient way to re-use the same status.
+        c_api.TF_SetAttrValueProto(op_desc, compat.as_str(name), serialized)
+    
+      try:
+        c_op = c_api.TF_FinishOperation(op_desc)
+      except errors.InvalidArgumentError as e:
+        # Convert to ValueError for backwards compatibility.
+>       raise ValueError(str(e))
+E       ValueError: Dimension 1 in both shapes must be equal, but are 6 and 3. Shapes are [4,6] and [4,3]. for 'while_2/Select_2' (op: 'Select') with input shapes: [4,3], [4,6], [4,6].
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/ops.py:1867: ValueError
+----------------------------- Captured stderr call -----------------------------
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:170: The name tf.get_default_session is deprecated. Please use tf.compat.v1.get_default_session instead.
+
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:177: The name tf.ConfigProto is deprecated. Please use tf.compat.v1.ConfigProto instead.
+
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:182: The name tf.Session is deprecated. Please use tf.compat.v1.Session instead.
+
+2023-09-01 18:55:26.972011: I tensorflow/core/platform/cpu_feature_guard.cc:142] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 FMA
+2023-09-01 18:55:26.992959: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 3399905000 Hz
+2023-09-01 18:55:26.993354: I tensorflow/compiler/xla/service/service.cc:168] XLA service 0x56286ac64b70 executing computations on platform Host. Devices:
+2023-09-01 18:55:26.993385: I tensorflow/compiler/xla/service/service.cc:175]   StreamExecutor device (0): <undefined>, <undefined>
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:186: The name tf.global_variables is deprecated. Please use tf.compat.v1.global_variables instead.
+
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:195: The name tf.is_variable_initialized is deprecated. Please use tf.compat.v1.is_variable_initialized instead.
+
+2023-09-01 18:55:27.011561: W tensorflow/compiler/jit/mark_for_compilation_pass.cc:1412] (One-time warning): Not using XLA:CPU for cluster because envvar TF_XLA_FLAGS=--tf_xla_cpu_global_jit was not set.  If you want XLA:CPU, either set that envvar, or use experimental_jit_scope to enable XLA:CPU.  To confirm that XLA is active, pass --vmodule=xla_compilation_cache=1 (as a proper command-line flag, not via TF_XLA_FLAGS) or set the envvar XLA_FLAGS=--xla_hlo_profile.
+WARNING:tensorflow:From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:2873: add_dispatch_support.<locals>.wrapper (from tensorflow.python.ops.array_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.where in 2.0, which has the same broadcast rule as np.where
+------------------------------ Captured log call -------------------------------
+WARNING  tensorflow:deprecation_wrapper.py:119 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:170: The name tf.get_default_session is deprecated. Please use tf.compat.v1.get_default_session instead.
+
+WARNING  tensorflow:deprecation_wrapper.py:119 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:177: The name tf.ConfigProto is deprecated. Please use tf.compat.v1.ConfigProto instead.
+
+WARNING  tensorflow:deprecation_wrapper.py:119 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:182: The name tf.Session is deprecated. Please use tf.compat.v1.Session instead.
+
+WARNING  tensorflow:deprecation_wrapper.py:119 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:186: The name tf.global_variables is deprecated. Please use tf.compat.v1.global_variables instead.
+
+WARNING  tensorflow:deprecation_wrapper.py:119 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:195: The name tf.is_variable_initialized is deprecated. Please use tf.compat.v1.is_variable_initialized instead.
+
+WARNING  tensorflow:deprecation.py:323 From /home/user/BugsInPy/temp/projects/keras/keras/backend/tensorflow_backend.py:2873: add_dispatch_support.<locals>.wrapper (from tensorflow.python.ops.array_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.where in 2.0, which has the same broadcast rule as np.where
+=============================== warnings summary ===============================
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/h5py/__init__.py:46
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/h5py/__init__.py:46
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/h5py/__init__.py:46: DeprecationWarning: `np.typeDict` is a deprecated alias for `np.sctypeDict`.
+    from ._conv import register_converters as _register_converters
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/pywrap_tensorflow_internal.py:15
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/pywrap_tensorflow_internal.py:15
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/pywrap_tensorflow_internal.py:15: DeprecationWarning: the imp module is deprecated in favour of importlib; see the module's documentation for alternative uses
+    import imp
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1286
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1286
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1286: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    _pywrap_tensorflow.RegisterType("Mapping", _collections.Mapping)
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1287
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1287
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/util/nest.py:1287: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    _pywrap_tensorflow.RegisterType("Sequence", _collections.Sequence)
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:516
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:516
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:516: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint8 = np.dtype([("qint8", np.int8, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:517
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:517
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:517: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_quint8 = np.dtype([("quint8", np.uint8, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:518
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:518
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:518: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint16 = np.dtype([("qint16", np.int16, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:519
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:519
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:519: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_quint16 = np.dtype([("quint16", np.uint16, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:520
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:520
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:520: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint32 = np.dtype([("qint32", np.int32, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:525
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:525
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:525: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    np_resource = np.dtype([("resource", np.ubyte, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:593
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:593
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:593: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.object,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:601
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:601
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:601: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.bool,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:635
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:635
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:635: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.object,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:645
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:645
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/dtypes.py:645: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.bool,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:106
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:106
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:106: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.object:
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:108
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:108
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:108: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.bool:
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:61
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:61
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:61: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    class ObjectIdentityDictionary(collections.MutableMapping):
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:112
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:112
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/object_identity.py:112: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    class ObjectIdentitySet(collections.MutableSet):
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/data_structures.py:374
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/data_structures.py:374
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/training/tracking/data_structures.py:374: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    class _ListWrapper(List, collections.MutableSequence,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:10
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:10
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:10: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _nlv = LooseVersion(_np_version)
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:11
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:11
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:11: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version_under1p14 = _nlv < LooseVersion("1.14")
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:12
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:12
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:12: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version_under1p15 = _nlv < LooseVersion("1.15")
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:13
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:13
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:13: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version_under1p16 = _nlv < LooseVersion("1.16")
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:14
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:14
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:14: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version_under1p17 = _nlv < LooseVersion("1.17")
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:15
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:15
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/__init__.py:15: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version_under1p18 = _nlv < LooseVersion("1.18")
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/setuptools/_distutils/version.py:346
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/setuptools/_distutils/version.py:346
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/setuptools/_distutils/version.py:346: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/function.py:114
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/function.py:114
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/function.py:114
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/function.py:114
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/compat/numpy/function.py:114: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(_np_version) >= LooseVersion("1.17.0"):
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/_testing.py:24
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/_testing.py:24
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/pandas/_testing.py:24: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    import pandas._libs.testing as _testing
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:541
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:541
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:541: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint8 = np.dtype([("qint8", np.int8, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:542
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:542
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:542: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_quint8 = np.dtype([("quint8", np.uint8, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:543
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:543
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:543: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint16 = np.dtype([("qint16", np.int16, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:544
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:544
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:544: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_quint16 = np.dtype([("quint16", np.uint16, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:545
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:545
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:545: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    _np_qint32 = np.dtype([("qint32", np.int32, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:550
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:550
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:550: FutureWarning: Passing (type, 1) or '1type' as a synonym of type is deprecated; in a future version of numpy, it will be understood as (type, (1,)) / '(1,)type'.
+    np_resource = np.dtype([("resource", np.ubyte, 1)])
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:568
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:568
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:568: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    (np.object, string),
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:569
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:569
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:569: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    (np.bool, bool),
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:593
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:593
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:593: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    types_pb2.DT_STRING: np.object,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:597
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:597
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:597: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    types_pb2.DT_BOOL: np.bool,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:614
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:614
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:614: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    types_pb2.DT_STRING_REF: np.object,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:619
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:619
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/compat/tensorflow_stub/dtypes.py:619: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    types_pb2.DT_BOOL_REF: np.bool,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:100
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:100
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:100: DeprecationWarning: `np.object` is a deprecated alias for the builtin `object`. To silence this warning, use `object` by itself. Doing this will not modify any behavior and is safe. 
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.object: SlowAppendObjectArrayToTensorProto,
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:101
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:101
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorboard/util/tensor_util.py:101: DeprecationWarning: `np.bool` is a deprecated alias for the builtin `bool`. To silence this warning, use `bool` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.bool_` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    np.bool: SlowAppendBoolArrayToTensorProto,
+
+keras/callbacks.py:18
+keras/callbacks.py:18
+  /home/user/BugsInPy/temp/projects/keras/keras/callbacks.py:18: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated, and in 3.8 it will stop working
+    from collections import Iterable
+
+tests/keras/backend/backend_test.py:21
+tests/keras/backend/backend_test.py:21
+  /home/user/BugsInPy/temp/projects/keras/tests/keras/backend/backend_test.py:21: UserWarning: Could not import the CNTK backend
+    warnings.warn('Could not import the CNTK backend')
+
+tests/keras/backend/backend_test.py:35
+tests/keras/backend/backend_test.py:35
+  /home/user/BugsInPy/temp/projects/keras/tests/keras/backend/backend_test.py:35: UserWarning: Could not import the Theano backend
+    warnings.warn('Could not import the Theano backend')
+
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:538: 24 tests with warnings
+  /opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/tensorflow/python/framework/tensor_util.py:538: DeprecationWarning: tostring() is deprecated. Use tobytes() instead.
+    tensor_proto.tensor_content = nparray.tostring()
+
+-- Docs: https://docs.pytest.org/en/latest/warnings.html
+========================== slowest 20 test durations ===========================
+0.40s call     tests/keras/backend/backend_test.py::TestBackend::test_rnn_additional_states
+
+(0.00 durations hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+FAILED tests/keras/backend/backend_test.py::TestBackend::test_rnn_additional_states
+======================= 1 failed, 116 warnings in 3.97s ========================
+/opt/conda/envs/70d512a17e79e7668f22d8292a6a3870/lib/python3.7/site-packages/coverage/control.py:793: CoverageWarning: No data was collected. (no-data-collected)
+  self._warn("No data was collected.", slug="no-data-collected")

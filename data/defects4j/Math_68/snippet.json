@@ -1,0 +1,364 @@
+[
+    {
+        "name": "LevenbergMarquardtOptimizer.doOptimize#219",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.doOptimize()",
+        "snippet": "    @Override\n    protected VectorialPointValuePair doOptimize()\n        throws FunctionEvaluationException, OptimizationException, IllegalArgumentException {\n\n        // arrays shared with the other private methods\n        solvedCols  = Math.min(rows, cols);\n        diagR       = new double[cols];\n        jacNorm     = new double[cols];\n        beta        = new double[cols];\n        permutation = new int[cols];\n        lmDir       = new double[cols];\n\n        // local point\n        double   delta   = 0;\n        double   xNorm   = 0;\n        double[] diag    = new double[cols];\n        double[] oldX    = new double[cols];\n        double[] oldRes  = new double[rows];\n        double[] work1   = new double[cols];\n        double[] work2   = new double[cols];\n        double[] work3   = new double[cols];\n\n        // evaluate the function at the starting point and calculate its norm\n        updateResidualsAndCost();\n\n        // outer loop\n        lmPar = 0;\n        boolean firstIteration = true;\n        while (true) {\n\n            incrementIterationsCounter();\n\n            // compute the Q.R. decomposition of the jacobian matrix\n            updateJacobian();\n            qrDecomposition();\n\n            // compute Qt.res\n            qTy(residuals);\n\n            // now we don't need Q anymore,\n            // so let jacobian contain the R matrix with its diagonal elements\n            for (int k = 0; k < solvedCols; ++k) {\n                int pk = permutation[k];\n                jacobian[k][pk] = diagR[pk];\n            }\n\n            if (firstIteration) {\n\n                // scale the point according to the norms of the columns\n                // of the initial jacobian\n                xNorm = 0;\n                for (int k = 0; k < cols; ++k) {\n                    double dk = jacNorm[k];\n                    if (dk == 0) {\n                        dk = 1.0;\n                    }\n                    double xk = dk * point[k];\n                    xNorm  += xk * xk;\n                    diag[k] = dk;\n                }\n                xNorm = Math.sqrt(xNorm);\n\n                // initialize the step bound delta\n                delta = (xNorm == 0) ? initialStepBoundFactor : (initialStepBoundFactor * xNorm);\n\n            }\n\n            // check orthogonality between function vector and jacobian columns\n            double maxCosine = 0;\n            if (cost != 0) {\n                for (int j = 0; j < solvedCols; ++j) {\n                    int    pj = permutation[j];\n                    double s  = jacNorm[pj];\n                    if (s != 0) {\n                        double sum = 0;\n                        for (int i = 0; i <= j; ++i) {\n                            sum += jacobian[i][pj] * residuals[i];\n                        }\n                        maxCosine = Math.max(maxCosine, Math.abs(sum) / (s * cost));\n                    }\n                }\n            }\n            if (maxCosine <= orthoTolerance) {\n                // convergence has been reached\n                return new VectorialPointValuePair(point, objective);\n            }\n\n            // rescale if necessary\n            for (int j = 0; j < cols; ++j) {\n                diag[j] = Math.max(diag[j], jacNorm[j]);\n            }\n\n            // inner loop\n            for (double ratio = 0; ratio < 1.0e-4;) {\n\n                // save the state\n                for (int j = 0; j < solvedCols; ++j) {\n                    int pj = permutation[j];\n                    oldX[pj] = point[pj];\n                }\n                double previousCost = cost;\n                double[] tmpVec = residuals;\n                residuals = oldRes;\n                oldRes    = tmpVec;\n\n                // determine the Levenberg-Marquardt parameter\n                determineLMParameter(oldRes, delta, diag, work1, work2, work3);\n\n                // compute the new point and the norm of the evolution direction\n                double lmNorm = 0;\n                for (int j = 0; j < solvedCols; ++j) {\n                    int pj = permutation[j];\n                    lmDir[pj] = -lmDir[pj];\n                    point[pj] = oldX[pj] + lmDir[pj];\n                    double s = diag[pj] * lmDir[pj];\n                    lmNorm  += s * s;\n                }\n                lmNorm = Math.sqrt(lmNorm);\n\n                // on the first iteration, adjust the initial step bound.\n                if (firstIteration) {\n                    delta = Math.min(delta, lmNorm);\n                }\n\n                // evaluate the function at x + p and calculate its norm\n                updateResidualsAndCost();\n\n                // compute the scaled actual reduction\n                double actRed = -1.0;\n                if (0.1 * cost < previousCost) {\n                    double r = cost / previousCost;\n                    actRed = 1.0 - r * r;\n                }\n\n                // compute the scaled predicted reduction\n                // and the scaled directional derivative\n                for (int j = 0; j < solvedCols; ++j) {\n                    int pj = permutation[j];\n                    double dirJ = lmDir[pj];\n                    work1[j] = 0;\n                    for (int i = 0; i <= j; ++i) {\n                        work1[i] += jacobian[i][pj] * dirJ;\n                    }\n                }\n                double coeff1 = 0;\n                for (int j = 0; j < solvedCols; ++j) {\n                    coeff1 += work1[j] * work1[j];\n                }\n                double pc2 = previousCost * previousCost;\n                coeff1 = coeff1 / pc2;\n                double coeff2 = lmPar * lmNorm * lmNorm / pc2;\n                double preRed = coeff1 + 2 * coeff2;\n                double dirDer = -(coeff1 + coeff2);\n\n                // ratio of the actual to the predicted reduction\n                ratio = (preRed == 0) ? 0 : (actRed / preRed);\n\n                // update the step bound\n                if (ratio <= 0.25) {\n                    double tmp =\n                        (actRed < 0) ? (0.5 * dirDer / (dirDer + 0.5 * actRed)) : 0.5;\n                        if ((0.1 * cost >= previousCost) || (tmp < 0.1)) {\n                            tmp = 0.1;\n                        }\n                        delta = tmp * Math.min(delta, 10.0 * lmNorm);\n                        lmPar /= tmp;\n                } else if ((lmPar == 0) || (ratio >= 0.75)) {\n                    delta = 2 * lmNorm;\n                    lmPar *= 0.5;\n                }\n\n                // test for successful iteration.\n                if (ratio >= 1.0e-4) {\n                    // successful iteration, update the norm\n                    firstIteration = false;\n                    xNorm = 0;\n                    for (int k = 0; k < cols; ++k) {\n                        double xK = diag[k] * point[k];\n                        xNorm    += xK * xK;\n                    }\n                    xNorm = Math.sqrt(xNorm);\n                } else {\n                    // failed iteration, reset the previous values\n                    cost = previousCost;\n                    for (int j = 0; j < solvedCols; ++j) {\n                        int pj = permutation[j];\n                        point[pj] = oldX[pj];\n                    }\n                    tmpVec    = residuals;\n                    residuals = oldRes;\n                    oldRes    = tmpVec;\n                }\n\n                // tests for convergence.\n                    // we use the vectorial convergence checker\n                    // we use the Levenberg-Marquardt specific convergence parameters\n                    if (((Math.abs(actRed) <= costRelativeTolerance) &&\n                         (preRed <= costRelativeTolerance) &&\n                         (ratio <= 2.0)) ||\n                        (delta <= parRelativeTolerance * xNorm)) {\n                        return new VectorialPointValuePair(point, objective);\n                    }\n\n                // tests for termination and stringent tolerances\n                // (2.2204e-16 is the machine epsilon for IEEE754)\n                if ((Math.abs(actRed) <= 2.2204e-16) && (preRed <= 2.2204e-16) && (ratio <= 2.0)) {\n                    throw new OptimizationException(\"cost relative tolerance is too small ({0}),\" +\n                            \" no further reduction in the\" +\n                            \" sum of squares is possible\",\n                            costRelativeTolerance);\n                } else if (delta <= 2.2204e-16 * xNorm) {\n                    throw new OptimizationException(\"parameters relative tolerance is too small\" +\n                            \" ({0}), no further improvement in\" +\n                            \" the approximate solution is possible\",\n                            parRelativeTolerance);\n                } else if (maxCosine <= 2.2204e-16)  {\n                    throw new OptimizationException(\"orthogonality tolerance is too small ({0}),\" +\n                            \" solution is orthogonal to the jacobian\",\n                            orthoTolerance);\n                }\n\n            }\n\n        }\n\n    }\n",
+        "begin_line": 219,
+        "end_line": 444,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer": " Perform the bulk of optimization algorithm.\n     * @return the point/value pair giving the optimal value for objective function\n     * @exception FunctionEvaluationException if the objective function throws one during\n     * the search\n     * @exception OptimizationException if the algorithm failed to converge\n     * @exception IllegalArgumentException if the start point dimension is wrong\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.3536
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.determineLMParameter#468",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.determineLMParameter(double[], double, double[], double[], double[], double[])",
+        "snippet": "    private void determineLMParameter(double[] qy, double delta, double[] diag,\n            double[] work1, double[] work2, double[] work3) {\n\n        // compute and store in x the gauss-newton direction, if the\n        // jacobian is rank-deficient, obtain a least squares solution\n        for (int j = 0; j < rank; ++j) {\n            lmDir[permutation[j]] = qy[j];\n        }\n        for (int j = rank; j < cols; ++j) {\n            lmDir[permutation[j]] = 0;\n        }\n        for (int k = rank - 1; k >= 0; --k) {\n            int pk = permutation[k];\n            double ypk = lmDir[pk] / diagR[pk];\n            for (int i = 0; i < k; ++i) {\n                lmDir[permutation[i]] -= ypk * jacobian[i][pk];\n            }\n            lmDir[pk] = ypk;\n        }\n\n        // evaluate the function at the origin, and test\n        // for acceptance of the Gauss-Newton direction\n        double dxNorm = 0;\n        for (int j = 0; j < solvedCols; ++j) {\n            int pj = permutation[j];\n            double s = diag[pj] * lmDir[pj];\n            work1[pj] = s;\n            dxNorm += s * s;\n        }\n        dxNorm = Math.sqrt(dxNorm);\n        double fp = dxNorm - delta;\n        if (fp <= 0.1 * delta) {\n            lmPar = 0;\n            return;\n        }\n\n        // if the jacobian is not rank deficient, the Newton step provides\n        // a lower bound, parl, for the zero of the function,\n        // otherwise set this bound to zero\n        double sum2;\n        double parl = 0;\n        if (rank == solvedCols) {\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                work1[pj] *= diag[pj] / dxNorm;\n            }\n            sum2 = 0;\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                double sum = 0;\n                for (int i = 0; i < j; ++i) {\n                    sum += jacobian[i][pj] * work1[permutation[i]];\n                }\n                double s = (work1[pj] - sum) / diagR[pj];\n                work1[pj] = s;\n                sum2 += s * s;\n            }\n            parl = fp / (delta * sum2);\n        }\n\n        // calculate an upper bound, paru, for the zero of the function\n        sum2 = 0;\n        for (int j = 0; j < solvedCols; ++j) {\n            int pj = permutation[j];\n            double sum = 0;\n            for (int i = 0; i <= j; ++i) {\n                sum += jacobian[i][pj] * qy[i];\n            }\n            sum /= diag[pj];\n            sum2 += sum * sum;\n        }\n        double gNorm = Math.sqrt(sum2);\n        double paru = gNorm / delta;\n        if (paru == 0) {\n            // 2.2251e-308 is the smallest positive real for IEE754\n            paru = 2.2251e-308 / Math.min(delta, 0.1);\n        }\n\n        // if the input par lies outside of the interval (parl,paru),\n        // set par to the closer endpoint\n        lmPar = Math.min(paru, Math.max(lmPar, parl));\n        if (lmPar == 0) {\n            lmPar = gNorm / dxNorm;\n        }\n\n        for (int countdown = 10; countdown >= 0; --countdown) {\n\n            // evaluate the function at the current value of lmPar\n            if (lmPar == 0) {\n                lmPar = Math.max(2.2251e-308, 0.001 * paru);\n            }\n            double sPar = Math.sqrt(lmPar);\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                work1[pj] = sPar * diag[pj];\n            }\n            determineLMDirection(qy, work1, work2, work3);\n\n            dxNorm = 0;\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                double s = diag[pj] * lmDir[pj];\n                work3[pj] = s;\n                dxNorm += s * s;\n            }\n            dxNorm = Math.sqrt(dxNorm);\n            double previousFP = fp;\n            fp = dxNorm - delta;\n\n            // if the function is small enough, accept the current value\n            // of lmPar, also test for the exceptional cases where parl is zero\n            if ((Math.abs(fp) <= 0.1 * delta) ||\n                    ((parl == 0) && (fp <= previousFP) && (previousFP < 0))) {\n                return;\n            }\n\n            // compute the Newton correction\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                work1[pj] = work3[pj] * diag[pj] / dxNorm;\n            }\n            for (int j = 0; j < solvedCols; ++j) {\n                int pj = permutation[j];\n                work1[pj] /= work2[j];\n                double tmp = work1[pj];\n                for (int i = j + 1; i < solvedCols; ++i) {\n                    work1[permutation[i]] -= jacobian[i][pj] * tmp;\n                }\n            }\n            sum2 = 0;\n            for (int j = 0; j < solvedCols; ++j) {\n                double s = work1[permutation[j]];\n                sum2 += s * s;\n            }\n            double correction = fp / (delta * sum2);\n\n            // depending on the sign of the function, update parl or paru.\n            if (fp > 0) {\n                parl = Math.max(parl, lmPar);\n            } else if (fp < 0) {\n                paru = Math.min(paru, lmPar);\n            }\n\n            // compute an improved estimate for lmPar\n            lmPar = Math.max(parl, lmPar + correction);\n\n        }\n    }\n",
+        "begin_line": 468,
+        "end_line": 615,
+        "comment": "\n     * Determine the Levenberg-Marquardt parameter.\n     * <p>This implementation is a translation in Java of the MINPACK\n     * <a href=\"http://www.netlib.org/minpack/lmpar.f\">lmpar</a>\n     * routine.</p>\n     * <p>This method sets the lmPar and lmDir attributes.</p>\n     * <p>The authors of the original fortran function are:</p>\n     * <ul>\n     *   <li>Argonne National Laboratory. MINPACK project. March 1980</li>\n     *   <li>Burton  S. Garbow</li>\n     *   <li>Kenneth E. Hillstrom</li>\n     *   <li>Jorge   J. More</li>\n     * </ul>\n     * <p>Luc Maisonobe did the Java translation.</p>\n     *\n     * @param qy array containing qTy\n     * @param delta upper bound on the euclidean norm of diagR * lmDir\n     * @param diag diagonal matrix\n     * @param work1 work array\n     * @param work2 work array\n     * @param work3 work array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3536
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.determineLMDirection#637",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.determineLMDirection(double[], double[], double[], double[])",
+        "snippet": "    private void determineLMDirection(double[] qy, double[] diag,\n            double[] lmDiag, double[] work) {\n\n        // copy R and Qty to preserve input and initialize s\n        //  in particular, save the diagonal elements of R in lmDir\n        for (int j = 0; j < solvedCols; ++j) {\n            int pj = permutation[j];\n            for (int i = j + 1; i < solvedCols; ++i) {\n                jacobian[i][pj] = jacobian[j][permutation[i]];\n            }\n            lmDir[j] = diagR[pj];\n            work[j]  = qy[j];\n        }\n\n        // eliminate the diagonal matrix d using a Givens rotation\n        for (int j = 0; j < solvedCols; ++j) {\n\n            // prepare the row of d to be eliminated, locating the\n            // diagonal element using p from the Q.R. factorization\n            int pj = permutation[j];\n            double dpj = diag[pj];\n            if (dpj != 0) {\n                Arrays.fill(lmDiag, j + 1, lmDiag.length, 0);\n            }\n            lmDiag[j] = dpj;\n\n            //  the transformations to eliminate the row of d\n            // modify only a single element of Qty\n            // beyond the first n, which is initially zero.\n            double qtbpj = 0;\n            for (int k = j; k < solvedCols; ++k) {\n                int pk = permutation[k];\n\n                // determine a Givens rotation which eliminates the\n                // appropriate element in the current row of d\n                if (lmDiag[k] != 0) {\n\n                    final double sin;\n                    final double cos;\n                    double rkk = jacobian[k][pk];\n                    if (Math.abs(rkk) < Math.abs(lmDiag[k])) {\n                        final double cotan = rkk / lmDiag[k];\n                        sin   = 1.0 / Math.sqrt(1.0 + cotan * cotan);\n                        cos   = sin * cotan;\n                    } else {\n                        final double tan = lmDiag[k] / rkk;\n                        cos = 1.0 / Math.sqrt(1.0 + tan * tan);\n                        sin = cos * tan;\n                    }\n\n                    // compute the modified diagonal element of R and\n                    // the modified element of (Qty,0)\n                    jacobian[k][pk] = cos * rkk + sin * lmDiag[k];\n                    final double temp = cos * work[k] + sin * qtbpj;\n                    qtbpj = -sin * work[k] + cos * qtbpj;\n                    work[k] = temp;\n\n                    // accumulate the tranformation in the row of s\n                    for (int i = k + 1; i < solvedCols; ++i) {\n                        double rik = jacobian[i][pk];\n                        final double temp2 = cos * rik + sin * lmDiag[i];\n                        lmDiag[i] = -sin * rik + cos * lmDiag[i];\n                        jacobian[i][pk] = temp2;\n                    }\n\n                }\n            }\n\n            // store the diagonal element of s and restore\n            // the corresponding diagonal element of R\n            lmDiag[j] = jacobian[j][permutation[j]];\n            jacobian[j][permutation[j]] = lmDir[j];\n\n        }\n\n        // solve the triangular system for z, if the system is\n        // singular, then obtain a least squares solution\n        int nSing = solvedCols;\n        for (int j = 0; j < solvedCols; ++j) {\n            if ((lmDiag[j] == 0) && (nSing == solvedCols)) {\n                nSing = j;\n            }\n            if (nSing < solvedCols) {\n                work[j] = 0;\n            }\n        }\n        if (nSing > 0) {\n            for (int j = nSing - 1; j >= 0; --j) {\n                int pj = permutation[j];\n                double sum = 0;\n                for (int i = j + 1; i < nSing; ++i) {\n                    sum += jacobian[i][pj] * work[i];\n                }\n                work[j] = (work[j] - sum) / lmDiag[j];\n            }\n        }\n\n        // permute the components of z back to components of lmDir\n        for (int j = 0; j < lmDir.length; ++j) {\n            lmDir[permutation[j]] = work[j];\n        }\n\n    }\n",
+        "begin_line": 637,
+        "end_line": 739,
+        "comment": "\n     * Solve a*x = b and d*x = 0 in the least squares sense.\n     * <p>This implementation is a translation in Java of the MINPACK\n     * <a href=\"http://www.netlib.org/minpack/qrsolv.f\">qrsolv</a>\n     * routine.</p>\n     * <p>This method sets the lmDir and lmDiag attributes.</p>\n     * <p>The authors of the original fortran function are:</p>\n     * <ul>\n     *   <li>Argonne National Laboratory. MINPACK project. March 1980</li>\n     *   <li>Burton  S. Garbow</li>\n     *   <li>Kenneth E. Hillstrom</li>\n     *   <li>Jorge   J. More</li>\n     * </ul>\n     * <p>Luc Maisonobe did the Java translation.</p>\n     *\n     * @param qy array containing qTy\n     * @param diag diagonal matrix\n     * @param lmDiag diagonal elements associated with lmDir\n     * @param work work array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3162
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.getRMS#238",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.getRMS()",
+        "snippet": "    public double getRMS() {\n        double criterion = 0;\n        for (int i = 0; i < rows; ++i) {\n            final double residual = residuals[i];\n            criterion += residualsWeights[i] * residual * residual;\n        }\n        return Math.sqrt(criterion / rows);\n    }\n",
+        "begin_line": 238,
+        "end_line": 245,
+        "comment": "\n     * Get the Root Mean Square value.\n     * Get the Root Mean Square value, i.e. the root of the arithmetic\n     * mean of the square of all weighted residuals. This is related to the\n     * criterion that is minimized by the optimizer as follows: if\n     * <em>c</em> if the criterion, and <em>n</em> is the number of\n     * measurements, then the RMS is <em>sqrt (c/n)</em>.\n     *\n     * @return RMS value\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "VectorialPointValuePair.getPointRef#76",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/VectorialPointValuePair.java",
+        "class_name": "org.apache.commons.math.optimization.VectorialPointValuePair",
+        "signature": "org.apache.commons.math.optimization.VectorialPointValuePair.getPointRef()",
+        "snippet": "    public double[] getPointRef() {\n        return point;\n    }\n",
+        "begin_line": 76,
+        "end_line": 78,
+        "comment": " Get a reference to the point.\n     * <p>This method is provided as a convenience to avoid copying\n     * the array, the elements of the array should <em>not</em> be modified.</p>\n     * @return a reference to the internal array storing the point\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.qrDecomposition#763",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.qrDecomposition()",
+        "snippet": "    private void qrDecomposition() throws OptimizationException {\n\n        // initializations\n        for (int k = 0; k < cols; ++k) {\n            permutation[k] = k;\n            double norm2 = 0;\n            for (int i = 0; i < jacobian.length; ++i) {\n                double akk = jacobian[i][k];\n                norm2 += akk * akk;\n            }\n            jacNorm[k] = Math.sqrt(norm2);\n        }\n\n        // transform the matrix column after column\n        for (int k = 0; k < cols; ++k) {\n\n            // select the column with the greatest norm on active components\n            int nextColumn = -1;\n            double ak2 = Double.NEGATIVE_INFINITY;\n            for (int i = k; i < cols; ++i) {\n                double norm2 = 0;\n                for (int j = k; j < jacobian.length; ++j) {\n                    double aki = jacobian[j][permutation[i]];\n                    norm2 += aki * aki;\n                }\n                if (Double.isInfinite(norm2) || Double.isNaN(norm2)) {\n                    throw new OptimizationException(\n                            \"unable to perform Q.R decomposition on the {0}x{1} jacobian matrix\",\n                            rows, cols);\n                }\n                if (norm2 > ak2) {\n                    nextColumn = i;\n                    ak2        = norm2;\n                }\n            }\n            if (ak2 == 0) {\n                rank = k;\n                return;\n            }\n            int pk                  = permutation[nextColumn];\n            permutation[nextColumn] = permutation[k];\n            permutation[k]          = pk;\n\n            // choose alpha such that Hk.u = alpha ek\n            double akk   = jacobian[k][pk];\n            double alpha = (akk > 0) ? -Math.sqrt(ak2) : Math.sqrt(ak2);\n            double betak = 1.0 / (ak2 - akk * alpha);\n            beta[pk]     = betak;\n\n            // transform the current column\n            diagR[pk]        = alpha;\n            jacobian[k][pk] -= alpha;\n\n            // transform the remaining columns\n            for (int dk = cols - 1 - k; dk > 0; --dk) {\n                double gamma = 0;\n                for (int j = k; j < jacobian.length; ++j) {\n                    gamma += jacobian[j][pk] * jacobian[j][permutation[k + dk]];\n                }\n                gamma *= betak;\n                for (int j = k; j < jacobian.length; ++j) {\n                    jacobian[j][permutation[k + dk]] -= gamma * jacobian[j][pk];\n                }\n            }\n\n        }\n\n        rank = solvedCols;\n\n    }\n",
+        "begin_line": 763,
+        "end_line": 832,
+        "comment": "\n     * Decompose a matrix A as A.P = Q.R using Householder transforms.\n     * <p>As suggested in the P. Lascaux and R. Theodor book\n     * <i>Analyse num&eacute;rique matricielle appliqu&eacute;e &agrave;\n     * l'art de l'ing&eacute;nieur</i> (Masson, 1986), instead of representing\n     * the Householder transforms with u<sub>k</sub> unit vectors such that:\n     * <pre>\n     * H<sub>k</sub> = I - 2u<sub>k</sub>.u<sub>k</sub><sup>t</sup>\n     * </pre>\n     * we use <sub>k</sub> non-unit vectors such that:\n     * <pre>\n     * H<sub>k</sub> = I - beta<sub>k</sub>v<sub>k</sub>.v<sub>k</sub><sup>t</sup>\n     * </pre>\n     * where v<sub>k</sub> = a<sub>k</sub> - alpha<sub>k</sub> e<sub>k</sub>.\n     * The beta<sub>k</sub> coefficients are provided upon exit as recomputing\n     * them from the v<sub>k</sub> vectors would be costly.</p>\n     * <p>This decomposition handles rank deficient cases since the tranformations\n     * are performed in non-increasing columns norms order thanks to columns\n     * pivoting. The diagonal elements of the R matrix are therefore also in\n     * non-increasing absolute values order.</p>\n     * @exception OptimizationException if the decomposition cannot be performed\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2294
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.qTy#839",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.qTy(double[])",
+        "snippet": "    private void qTy(double[] y) {\n        for (int k = 0; k < cols; ++k) {\n            int pk = permutation[k];\n            double gamma = 0;\n            for (int i = k; i < rows; ++i) {\n                gamma += jacobian[i][pk] * y[i];\n            }\n            gamma *= beta[pk];\n            for (int i = k; i < rows; ++i) {\n                y[i] -= gamma * jacobian[i][pk];\n            }\n        }\n    }\n",
+        "begin_line": 839,
+        "end_line": 851,
+        "comment": "\n     * Compute the product Qt.y for some Q.R. decomposition.\n     *\n     * @param y vector to multiply (will be overwritten with the result)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2182
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.LevenbergMarquardtOptimizer#160",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.LevenbergMarquardtOptimizer()",
+        "snippet": "    public LevenbergMarquardtOptimizer() {\n\n        // set up the superclass with a default  max cost evaluations setting\n        setMaxIterations(1000);\n\n        // default values for the tuning parameters\n        setInitialStepBoundFactor(100.0);\n        setCostRelativeTolerance(1.0e-10);\n        setParRelativeTolerance(1.0e-10);\n        setOrthoTolerance(1.0e-10);\n\n    }\n",
+        "begin_line": 160,
+        "end_line": 171,
+        "comment": "\n     * Build an optimizer for least squares problems.\n     * <p>The default values for the algorithm settings are:\n     *   <ul>\n     *    <li>{@link #setConvergenceChecker vectorial convergence checker}: null</li>\n     *    <li>{@link #setInitialStepBoundFactor initial step bound factor}: 100.0</li>\n     *    <li>{@link #setMaxIterations maximal iterations}: 1000</li>\n     *    <li>{@link #setCostRelativeTolerance cost relative tolerance}: 1.0e-10</li>\n     *    <li>{@link #setParRelativeTolerance parameters relative tolerance}: 1.0e-10</li>\n     *    <li>{@link #setOrthoTolerance orthogonality tolerance}: 1.0e-10</li>\n     *   </ul>\n     * </p>\n     * <p>These default values may be overridden after construction. If the {@link\n     * #setConvergenceChecker vectorial convergence checker} is set to a non-null value, it\n     * will be used instead of the {@link #setCostRelativeTolerance cost relative tolerance}\n     * and {@link #setParRelativeTolerance parameters relative tolerance} settings.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.setInitialStepBoundFactor#182",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.setInitialStepBoundFactor(double)",
+        "snippet": "    public void setInitialStepBoundFactor(double initialStepBoundFactor) {\n        this.initialStepBoundFactor = initialStepBoundFactor;\n    }\n",
+        "begin_line": 182,
+        "end_line": 184,
+        "comment": "\n     * Set the positive input variable used in determining the initial step bound.\n     * This bound is set to the product of initialStepBoundFactor and the euclidean\n     * norm of diag*x if nonzero, or else to initialStepBoundFactor itself. In most\n     * cases factor should lie in the interval (0.1, 100.0). 100.0 is a generally\n     * recommended value.\n     *\n     * @param initialStepBoundFactor initial step bound factor\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.setCostRelativeTolerance#192",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.setCostRelativeTolerance(double)",
+        "snippet": "    public void setCostRelativeTolerance(double costRelativeTolerance) {\n        this.costRelativeTolerance = costRelativeTolerance;\n    }\n",
+        "begin_line": 192,
+        "end_line": 194,
+        "comment": "\n     * Set the desired relative error in the sum of squares.\n     * <p>This setting is used only if the {@link #setConvergenceChecker vectorial\n     * convergence checker} is set to null.</p>\n     * @param costRelativeTolerance desired relative error in the sum of squares\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.setParRelativeTolerance#203",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.setParRelativeTolerance(double)",
+        "snippet": "    public void setParRelativeTolerance(double parRelativeTolerance) {\n        this.parRelativeTolerance = parRelativeTolerance;\n    }\n",
+        "begin_line": 203,
+        "end_line": 205,
+        "comment": "\n     * Set the desired relative error in the approximate solution parameters.\n     * <p>This setting is used only if the {@link #setConvergenceChecker vectorial\n     * convergence checker} is set to null.</p>\n     * @param parRelativeTolerance desired relative error\n     * in the approximate solution parameters\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "LevenbergMarquardtOptimizer.setOrthoTolerance#214",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/LevenbergMarquardtOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.LevenbergMarquardtOptimizer.setOrthoTolerance(double)",
+        "snippet": "    public void setOrthoTolerance(double orthoTolerance) {\n        this.orthoTolerance = orthoTolerance;\n    }\n",
+        "begin_line": 214,
+        "end_line": 216,
+        "comment": "\n     * Set the desired max cosine on the orthogonality.\n     * <p>This setting is always used, regardless of the {@link #setConvergenceChecker\n     * vectorial convergence checker} being null or non-null.</p>\n     * @param orthoTolerance desired max cosine on the orthogonality\n     * between the function vector and the columns of the jacobian\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "VectorialPointValuePair.VectorialPointValuePair#46",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/VectorialPointValuePair.java",
+        "class_name": "org.apache.commons.math.optimization.VectorialPointValuePair",
+        "signature": "org.apache.commons.math.optimization.VectorialPointValuePair.VectorialPointValuePair(double[], double[])",
+        "snippet": "    public VectorialPointValuePair(final double[] point, final double[] value) {\n        this.point = point.clone();\n        this.value = value.clone();\n    }\n",
+        "begin_line": 46,
+        "end_line": 49,
+        "comment": " Build a point/objective function value pair.\n     * @param point point coordinates (the built instance will store\n     * a copy of the array, not the array passed as argument)\n     * @param value value of an objective function at the point\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2157
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.AbstractLeastSquaresOptimizer#115",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.AbstractLeastSquaresOptimizer()",
+        "snippet": "    protected AbstractLeastSquaresOptimizer() {\n        setConvergenceChecker(new SimpleVectorialValueChecker());\n        setMaxIterations(DEFAULT_MAX_ITERATIONS);\n        setMaxEvaluations(Integer.MAX_VALUE);\n    }\n",
+        "begin_line": 115,
+        "end_line": 119,
+        "comment": " Simple constructor with default settings.\n     * <p>The convergence check is set to a {@link SimpleVectorialValueChecker}\n     * and the maximal number of evaluation is set to its default value.</p>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.setMaxIterations#122",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.setMaxIterations(int)",
+        "snippet": "    public void setMaxIterations(int maxIterations) {\n        this.maxIterations = maxIterations;\n    }\n",
+        "begin_line": 122,
+        "end_line": 124,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.DifferentiableMultivariateVectorialOptimizer": " Set the maximal number of iterations of the algorithm.\n     * @param maxIterations maximal number of function calls\n     * .\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.setMaxEvaluations#137",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.setMaxEvaluations(int)",
+        "snippet": "    public void setMaxEvaluations(int maxEvaluations) {\n        this.maxEvaluations = maxEvaluations;\n    }\n",
+        "begin_line": 137,
+        "end_line": 139,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.DifferentiableMultivariateVectorialOptimizer": " Set the maximal number of functions evaluations.\n    * @param maxEvaluations maximal number of function evaluations\n    "
+        },
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.setConvergenceChecker#157",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.setConvergenceChecker(org.apache.commons.math.optimization.VectorialConvergenceChecker)",
+        "snippet": "    public void setConvergenceChecker(VectorialConvergenceChecker convergenceChecker) {\n        this.checker = convergenceChecker;\n    }\n",
+        "begin_line": 157,
+        "end_line": 159,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.DifferentiableMultivariateVectorialOptimizer": " Set the convergence checker.\n     * @param checker object to use to check for convergence\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.incrementIterationsCounter#170",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.incrementIterationsCounter()",
+        "snippet": "    protected void incrementIterationsCounter()\n        throws OptimizationException {\n        if (++iterations > maxIterations) {\n            throw new OptimizationException(new MaxIterationsExceededException(maxIterations));\n        }\n    }\n",
+        "begin_line": 170,
+        "end_line": 175,
+        "comment": " Increment the iterations counter by 1.\n     * @exception OptimizationException if the maximal number\n     * of iterations is exceeded\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.updateJacobian#182",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.updateJacobian()",
+        "snippet": "    protected void updateJacobian() throws FunctionEvaluationException {\n        ++jacobianEvaluations;\n        jacobian = jF.value(point);\n        if (jacobian.length != rows) {\n            throw new FunctionEvaluationException(point, \"dimension mismatch {0} != {1}\",\n                                                  jacobian.length, rows);\n        }\n        for (int i = 0; i < rows; i++) {\n            final double[] ji = jacobian[i];\n            final double factor = -Math.sqrt(residualsWeights[i]);\n            for (int j = 0; j < cols; ++j) {\n                ji[j] *= factor;\n            }\n        }\n    }\n",
+        "begin_line": 182,
+        "end_line": 196,
+        "comment": "\n     * Update the jacobian matrix.\n     * @exception FunctionEvaluationException if the function jacobian\n     * cannot be evaluated or its dimension doesn't match problem dimension\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.updateResidualsAndCost#204",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.updateResidualsAndCost()",
+        "snippet": "    protected void updateResidualsAndCost()\n        throws FunctionEvaluationException {\n\n        if (++objectiveEvaluations > maxEvaluations) {\n            throw new FunctionEvaluationException(new MaxEvaluationsExceededException(maxEvaluations),\n                                                  point);\n        }\n        objective = function.value(point);\n        if (objective.length != rows) {\n            throw new FunctionEvaluationException(point, \"dimension mismatch {0} != {1}\",\n                                                  objective.length, rows);\n        }\n        cost = 0;\n        int index = 0;\n        for (int i = 0; i < rows; i++) {\n            final double residual = targetValues[i] - objective[i];\n            residuals[i] = residual;\n            cost += residualsWeights[i] * residual * residual;\n            index += cols;\n        }\n        cost = Math.sqrt(cost);\n\n    }\n",
+        "begin_line": 204,
+        "end_line": 226,
+        "comment": "\n     * Update the residuals array and cost function value.\n     * @exception FunctionEvaluationException if the function cannot be evaluated\n     * or its dimension doesn't match problem dimension or maximal number of\n     * of evaluations is exceeded\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "AbstractLeastSquaresOptimizer.optimize#324",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/general/AbstractLeastSquaresOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer",
+        "signature": "org.apache.commons.math.optimization.general.AbstractLeastSquaresOptimizer.optimize(org.apache.commons.math.analysis.DifferentiableMultivariateVectorialFunction, double[], double[], double[])",
+        "snippet": "    public VectorialPointValuePair optimize(final DifferentiableMultivariateVectorialFunction f,\n                                            final double[] target, final double[] weights,\n                                            final double[] startPoint)\n        throws FunctionEvaluationException, OptimizationException, IllegalArgumentException {\n\n        if (target.length != weights.length) {\n            throw new OptimizationException(\"dimension mismatch {0} != {1}\",\n                                            target.length, weights.length);\n        }\n\n        // reset counters\n        iterations           = 0;\n        objectiveEvaluations = 0;\n        jacobianEvaluations  = 0;\n\n        // store least squares problem characteristics\n        function         = f;\n        jF               = f.jacobian();\n        targetValues     = target.clone();\n        residualsWeights = weights.clone();\n        this.point       = startPoint.clone();\n        this.residuals   = new double[target.length];\n\n        // arrays shared with the other private methods\n        rows      = target.length;\n        cols      = point.length;\n        jacobian  = new double[rows][cols];\n\n        cost = Double.POSITIVE_INFINITY;\n\n        return doOptimize();\n\n    }\n",
+        "begin_line": 324,
+        "end_line": 356,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.DifferentiableMultivariateVectorialOptimizer": " Optimizes an objective function.\n     * <p>\n     * Optimization is considered to be a weighted least-squares minimization.\n     * The cost function to be minimized is\n     * &sum;weight<sub>i</sub>(objective<sub>i</sub>-target<sub>i</sub>)<sup>2</sup>\n     * </p>\n     * @param f objective function\n     * @param target target value for the objective functions at optimum\n     * @param weights weight for the least squares cost computation\n     * @param startPoint the start point for optimization\n     * @return the point/value pair giving the optimal value for objective function\n     * @exception FunctionEvaluationException if the objective function throws one during\n     * the search\n     * @exception OptimizationException if the algorithm failed to converge\n     * @exception IllegalArgumentException if the start point dimension is wrong\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "SimpleVectorialValueChecker.SimpleVectorialValueChecker#50",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/SimpleVectorialValueChecker.java",
+        "class_name": "org.apache.commons.math.optimization.SimpleVectorialValueChecker",
+        "signature": "org.apache.commons.math.optimization.SimpleVectorialValueChecker.SimpleVectorialValueChecker()",
+        "snippet": "    public SimpleVectorialValueChecker() {\n        this.relativeThreshold = DEFAULT_RELATIVE_THRESHOLD;\n        this.absoluteThreshold = DEFAULT_ABSOLUTE_THRESHOLD;\n    }\n",
+        "begin_line": 50,
+        "end_line": 53,
+        "comment": " Build an instance with default threshold.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2132
+        },
+        "num_failing_tests": 2
+    }
+]

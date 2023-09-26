@@ -1,0 +1,322 @@
+[
+    {
+        "name": "NumberUtils.createNumber#448",
+        "is_bug": true,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createNumber(java.lang.String)",
+        "snippet": "    public static Number createNumber(String str) throws NumberFormatException {\n        if (str == null) {\n            return null;\n        }\n        if (StringUtils.isBlank(str)) {\n            throw new NumberFormatException(\"A blank string is not a valid number\");\n        }  \n        if (str.startsWith(\"--\")) {\n            // this is protection for poorness in java.lang.BigDecimal.\n            // it accepts this as a legal value, but it does not appear \n            // to be in specification of class. OS X Java parses it to \n            // a wrong value.\n            return null;\n        }\n        if (str.startsWith(\"0x\") || str.startsWith(\"-0x\")) {\n            return createInteger(str);\n        }   \n        char lastChar = str.charAt(str.length() - 1);\n        String mant;\n        String dec;\n        String exp;\n        int decPos = str.indexOf('.');\n        int expPos = str.indexOf('e') + str.indexOf('E') + 1;\n\n        if (decPos > -1) {\n\n            if (expPos > -1) {\n                if (expPos < decPos) {\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n                }\n                dec = str.substring(decPos + 1, expPos);\n            } else {\n                dec = str.substring(decPos + 1);\n            }\n            mant = str.substring(0, decPos);\n        } else {\n            if (expPos > -1) {\n                mant = str.substring(0, expPos);\n            } else {\n                mant = str;\n            }\n            dec = null;\n        }\n        if (!Character.isDigit(lastChar)) {\n            if (expPos > -1 && expPos < str.length() - 1) {\n                exp = str.substring(expPos + 1, str.length() - 1);\n            } else {\n                exp = null;\n            }\n            //Requesting a specific type..\n            String numeric = str.substring(0, str.length() - 1);\n            boolean allZeros = isAllZeros(mant) && isAllZeros(exp);\n            switch (lastChar) {\n                case 'l' :\n                case 'L' :\n                    if (dec == null\n                        && exp == null\n                        && (numeric.charAt(0) == '-' && isDigits(numeric.substring(1)) || isDigits(numeric))) {\n                        try {\n                            return createLong(numeric);\n                        } catch (NumberFormatException nfe) {\n                            //Too big for a long\n                        }\n                        return createBigInteger(numeric);\n\n                    }\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n                case 'f' :\n                case 'F' :\n                    try {\n                        Float f = NumberUtils.createFloat(numeric);\n                        if (!(f.isInfinite() || (f.floatValue() == 0.0F && !allZeros))) {\n                            //If it's too big for a float or the float value = 0 and the string\n                            //has non-zeros in it, then float does not have the precision we want\n                            return f;\n                        }\n\n                    } catch (NumberFormatException nfe) {\n                        // ignore the bad number\n                    }\n                    //$FALL-THROUGH$\n                case 'd' :\n                case 'D' :\n                    try {\n                        Double d = NumberUtils.createDouble(numeric);\n                        if (!(d.isInfinite() || (d.floatValue() == 0.0D && !allZeros))) {\n                            return d;\n                        }\n                    } catch (NumberFormatException nfe) {\n                        // ignore the bad number\n                    }\n                    try {\n                        return createBigDecimal(numeric);\n                    } catch (NumberFormatException e) {\n                        // ignore the bad number\n                    }\n                    //$FALL-THROUGH$\n                default :\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n\n            }\n        } else {\n            //User doesn't have a preference on the return type, so let's start\n            //small and go from there...\n            if (expPos > -1 && expPos < str.length() - 1) {\n                exp = str.substring(expPos + 1, str.length());\n            } else {\n                exp = null;\n            }\n            if (dec == null && exp == null) {\n                //Must be an int,long,bigint\n                try {\n                    return createInteger(str);\n                } catch (NumberFormatException nfe) {\n                    // ignore the bad number\n                }\n                try {\n                    return createLong(str);\n                } catch (NumberFormatException nfe) {\n                    // ignore the bad number\n                }\n                return createBigInteger(str);\n\n            } else {\n                //Must be a float,double,BigDec\n                boolean allZeros = isAllZeros(mant) && isAllZeros(exp);\n                try {\n                    Float f = createFloat(str);\n                    if (!(f.isInfinite() || (f.floatValue() == 0.0F && !allZeros))) {\n                        return f;\n                    }\n                } catch (NumberFormatException nfe) {\n                    // ignore the bad number\n                }\n                try {\n                    Double d = createDouble(str);\n                    if (!(d.isInfinite() || (d.doubleValue() == 0.0D && !allZeros))) {\n                        return d;\n                    }\n                } catch (NumberFormatException nfe) {\n                    // ignore the bad number\n                }\n\n                return createBigDecimal(str);\n\n            }\n        }\n    }\n",
+        "begin_line": 448,
+        "end_line": 595,
+        "comment": "\n     * <p>Turns a string value into a java.lang.Number.</p>\n     *\n     * <p>First, the value is examined for a type qualifier on the end\n     * (<code>'f','F','d','D','l','L'</code>).  If it is found, it starts \n     * trying to create successively larger types from the type specified\n     * until one is found that can represent the value.</p>\n     *\n     * <p>If a type specifier is not found, it will check for a decimal point\n     * and then try successively larger types from <code>Integer</code> to\n     * <code>BigInteger</code> and from <code>Float</code> to\n     * <code>BigDecimal</code>.</p>\n     *\n     * <p>If the string starts with <code>0x</code> or <code>-0x</code>, it\n     * will be interpreted as a hexadecimal integer.  Values with leading\n     * <code>0</code>'s will not be interpreted as octal.</p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     *\n     * <p>This method does not trim the input string, i.e., strings with leading\n     * or trailing spaces will generate NumberFormatExceptions.</p>\n     *\n     * @param str  String containing a number, may be null\n     * @return Number created from the string\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.isAllZeros#605",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.isAllZeros(java.lang.String)",
+        "snippet": "    private static boolean isAllZeros(String str) {\n        if (str == null) {\n            return true;\n        }\n        for (int i = str.length() - 1; i >= 0; i--) {\n            if (str.charAt(i) != '0') {\n                return false;\n            }\n        }\n        return str.length() > 0;\n    }\n",
+        "begin_line": 605,
+        "end_line": 615,
+        "comment": "\n     * <p>Utility method for {@link #createNumber(java.lang.String)}.</p>\n     *\n     * <p>Returns <code>true</code> if s is <code>null</code>.</p>\n     * \n     * @param str  the String to check\n     * @return if it is all zeros or <code>null</code>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createFloat#627",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createFloat(java.lang.String)",
+        "snippet": "    public static Float createFloat(String str) {\n        if (str == null) {\n            return null;\n        }\n        return Float.valueOf(str);\n    }\n",
+        "begin_line": 627,
+        "end_line": 632,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>Float</code>.</p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     * \n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>Float</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createDouble#643",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createDouble(java.lang.String)",
+        "snippet": "    public static Double createDouble(String str) {\n        if (str == null) {\n            return null;\n        }\n        return Double.valueOf(str);\n    }\n",
+        "begin_line": 643,
+        "end_line": 648,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>Double</code>.</p>\n     * \n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     *\n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>Double</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createInteger#660",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createInteger(java.lang.String)",
+        "snippet": "    public static Integer createInteger(String str) {\n        if (str == null) {\n            return null;\n        }\n        // decode() handles 0xAABD and 0777 (hex and octal) as well.\n        return Integer.decode(str);\n    }\n",
+        "begin_line": 660,
+        "end_line": 666,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>Integer</code>, handling\n     * hex and octal notations.</p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     * \n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>Integer</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createBigInteger#693",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createBigInteger(java.lang.String)",
+        "snippet": "    public static BigInteger createBigInteger(String str) {\n        if (str == null) {\n            return null;\n        }\n        return new BigInteger(str);\n    }\n",
+        "begin_line": 693,
+        "end_line": 698,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>BigInteger</code>.</p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     * \n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>BigInteger</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createBigDecimal#709",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createBigDecimal(java.lang.String)",
+        "snippet": "    public static BigDecimal createBigDecimal(String str) {\n        if (str == null) {\n            return null;\n        }\n        // handle JDK1.3.1 bug where \"\" throws IndexOutOfBoundsException\n        if (StringUtils.isBlank(str)) {\n            throw new NumberFormatException(\"A blank string is not a valid number\");\n        }  \n        return new BigDecimal(str);\n    }\n",
+        "begin_line": 709,
+        "end_line": 718,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>BigDecimal</code>.</p>\n     * \n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     *\n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>BigDecimal</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.8165
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.createLong#677",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createLong(java.lang.String)",
+        "snippet": "    public static Long createLong(String str) {\n        if (str == null) {\n            return null;\n        }\n        return Long.valueOf(str);\n    }\n",
+        "begin_line": 677,
+        "end_line": 682,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>Long</code>.</p>\n     * \n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     *\n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>Long</code>\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.isDigits#1287",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.isDigits(java.lang.String)",
+        "snippet": "    public static boolean isDigits(String str) {\n        if (StringUtils.isEmpty(str)) {\n            return false;\n        }\n        for (int i = 0; i < str.length(); i++) {\n            if (!Character.isDigit(str.charAt(i))) {\n                return false;\n            }\n        }\n        return true;\n    }\n",
+        "begin_line": 1287,
+        "end_line": 1297,
+        "comment": "\n     * <p>Checks whether the <code>String</code> contains only\n     * digit characters.</p>\n     *\n     * <p><code>Null</code> and empty String will return\n     * <code>false</code>.</p>\n     *\n     * @param str  the <code>String</code> to check\n     * @return <code>true</code> if str contains only unicode numeric\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "StringUtils.isEmpty#190",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/StringUtils.java",
+        "class_name": "org.apache.commons.lang3.StringUtils",
+        "signature": "org.apache.commons.lang3.StringUtils.isEmpty(java.lang.CharSequence)",
+        "snippet": "    public static boolean isEmpty(CharSequence str) {\n        return str == null || str.length() == 0;\n    }\n",
+        "begin_line": 190,
+        "end_line": 192,
+        "comment": "\n     * <p>Checks if a String is empty (\"\") or null.</p>\n     *\n     * <pre>\n     * StringUtils.isEmpty(null)      = true\n     * StringUtils.isEmpty(\"\")        = true\n     * StringUtils.isEmpty(\" \")       = false\n     * StringUtils.isEmpty(\"bob\")     = false\n     * StringUtils.isEmpty(\"  bob  \") = false\n     * </pre>\n     *\n     * <p>NOTE: This method changed in Lang version 2.0.\n     * It no longer trims the String.\n     * That functionality is available in isBlank().</p>\n     *\n     * @param str  the String to check, may be null\n     * @return <code>true</code> if the String is empty or null\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "StringUtils.isBlank#227",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/StringUtils.java",
+        "class_name": "org.apache.commons.lang3.StringUtils",
+        "signature": "org.apache.commons.lang3.StringUtils.isBlank(java.lang.CharSequence)",
+        "snippet": "    public static boolean isBlank(CharSequence str) {\n        int strLen;\n        if (str == null || (strLen = str.length()) == 0) {\n            return true;\n        }\n        for (int i = 0; i < strLen; i++) {\n            if ((Character.isWhitespace(str.charAt(i)) == false)) {\n                return false;\n            }\n        }\n        return true;\n    }\n",
+        "begin_line": 227,
+        "end_line": 238,
+        "comment": "\n     * <p>Checks if a String is whitespace, empty (\"\") or null.</p>\n     *\n     * <pre>\n     * StringUtils.isBlank(null)      = true\n     * StringUtils.isBlank(\"\")        = true\n     * StringUtils.isBlank(\" \")       = true\n     * StringUtils.isBlank(\"bob\")     = false\n     * StringUtils.isBlank(\"  bob  \") = false\n     * </pre>\n     *\n     * @param str  the String to check, may be null\n     * @return <code>true</code> if the String is null, empty or whitespace\n     * @since 2.0\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 2
+    },
+    {
+        "name": "NumberUtils.isNumber#1312",
+        "is_bug": true,
+        "src_path": "src/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.isNumber(java.lang.String)",
+        "snippet": "    public static boolean isNumber(String str) {\n        if (StringUtils.isEmpty(str)) {\n            return false;\n        }\n        char[] chars = str.toCharArray();\n        int sz = chars.length;\n        boolean hasExp = false;\n        boolean hasDecPoint = false;\n        boolean allowSigns = false;\n        boolean foundDigit = false;\n        // deal with any possible sign up front\n        int start = (chars[0] == '-') ? 1 : 0;\n        if (sz > start + 1) {\n            if (chars[start] == '0' && chars[start + 1] == 'x') {\n                int i = start + 2;\n                if (i == sz) {\n                    return false; // str == \"0x\"\n                }\n                // checking hex (it can't be anything else)\n                for (; i < chars.length; i++) {\n                    if ((chars[i] < '0' || chars[i] > '9')\n                        && (chars[i] < 'a' || chars[i] > 'f')\n                        && (chars[i] < 'A' || chars[i] > 'F')) {\n                        return false;\n                    }\n                }\n                return true;\n            }\n        }\n        sz--; // don't want to loop to the last char, check it afterwords\n              // for type qualifiers\n        int i = start;\n        // loop to the next to last char or to the last char if we need another digit to\n        // make a valid number (e.g. chars[0..5] = \"1234E\")\n        while (i < sz || (i < sz + 1 && allowSigns && !foundDigit)) {\n            if (chars[i] >= '0' && chars[i] <= '9') {\n                foundDigit = true;\n                allowSigns = false;\n\n            } else if (chars[i] == '.') {\n                if (hasDecPoint || hasExp) {\n                    // two decimal points or dec in exponent   \n                    return false;\n                }\n                hasDecPoint = true;\n            } else if (chars[i] == 'e' || chars[i] == 'E') {\n                // we've already taken care of hex.\n                if (hasExp) {\n                    // two E's\n                    return false;\n                }\n                if (!foundDigit) {\n                    return false;\n                }\n                hasExp = true;\n                allowSigns = true;\n            } else if (chars[i] == '+' || chars[i] == '-') {\n                if (!allowSigns) {\n                    return false;\n                }\n                allowSigns = false;\n                foundDigit = false; // we need a digit after the E\n            } else {\n                return false;\n            }\n            i++;\n        }\n        if (i < chars.length) {\n            if (chars[i] >= '0' && chars[i] <= '9') {\n                // no type qualifier, OK\n                return true;\n            }\n            if (chars[i] == 'e' || chars[i] == 'E') {\n                // can't have an E at the last byte\n                return false;\n            }\n            if (!allowSigns\n                && (chars[i] == 'd'\n                    || chars[i] == 'D'\n                    || chars[i] == 'f'\n                    || chars[i] == 'F')) {\n                return foundDigit;\n            }\n            if (chars[i] == 'l'\n                || chars[i] == 'L') {\n                // not allowing L with an exponent\n                return foundDigit && !hasExp;\n            }\n            // last character is illegal\n            return false;\n        }\n        // allowSigns is true iff the val ends in 'E'\n        // found digit it to make sure weird stuff like '.' and '1E-' doesn't pass\n        return !allowSigns && foundDigit;\n    }\n",
+        "begin_line": 1312,
+        "end_line": 1406,
+        "comment": "\n     * <p>Checks whether the String a valid Java number.</p>\n     *\n     * <p>Valid numbers include hexadecimal marked with the <code>0x</code>\n     * qualifier, scientific notation and numbers marked with a type\n     * qualifier (e.g. 123L).</p>\n     *\n     * <p><code>Null</code> and empty String will return\n     * <code>false</code>.</p>\n     *\n     * @param str  the <code>String</code> to check\n     * @return <code>true</code> if the string is a correctly formatted number\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getJavaVersionAsFloat#1132",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getJavaVersionAsFloat()",
+        "snippet": "    private static float getJavaVersionAsFloat() {\n        if (JAVA_VERSION_TRIMMED == null) {\n            return 0f;\n        }\n        String str = JAVA_VERSION_TRIMMED.substring(0, 3);\n        if (JAVA_VERSION_TRIMMED.length() >= 5) {\n            str = str + JAVA_VERSION_TRIMMED.substring(4, 5);\n        }\n        try {\n            return Float.parseFloat(str);\n        } catch (Exception ex) {\n            return 0;\n        }\n    }\n",
+        "begin_line": 1132,
+        "end_line": 1145,
+        "comment": "\n     * <p>Gets the Java version number as a <code>float</code>.</p>\n     *\n     * <p>Example return values:</p>\n     * <ul>\n     *  <li><code>1.2f</code> for JDK 1.2\n     *  <li><code>1.31f</code> for JDK 1.3.1\n     * </ul>\n     * \n     * <p>Patch releases are not reported.\n     * Zero is returned if {@link #JAVA_VERSION_TRIMMED} is <code>null</code>.</p>\n     * \n     * @return the version, for example 1.31f for JDK 1.3.1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getJavaVersionAsInt#1161",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getJavaVersionAsInt()",
+        "snippet": "    private static int getJavaVersionAsInt() {\n        if (JAVA_VERSION_TRIMMED == null) {\n            return 0;\n        }\n        String str = JAVA_VERSION_TRIMMED.substring(0, 1);\n        str = str + JAVA_VERSION_TRIMMED.substring(2, 3);\n        if (JAVA_VERSION_TRIMMED.length() >= 5) {\n            str = str + JAVA_VERSION_TRIMMED.substring(4, 5);\n        } else {\n            str = str + \"0\";\n        }\n        try {\n            return Integer.parseInt(str);\n        } catch (Exception ex) {\n            return 0;\n        }\n    }\n",
+        "begin_line": 1161,
+        "end_line": 1177,
+        "comment": "\n     * <p>Gets the Java version number as an <code>int</code>.</p>\n     *\n     * <p>Example return values:</p>\n     * <ul>\n     *  <li><code>120</code> for JDK 1.2\n     *  <li><code>131</code> for JDK 1.3.1\n     * </ul>\n     * \n     * <p>Patch releases are not reported.\n     * Zero is returned if {@link #JAVA_VERSION_TRIMMED} is <code>null</code>.</p>\n     * \n     * @return the version, for example 131 for JDK 1.3.1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getJavaVersionTrimmed#1184",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getJavaVersionTrimmed()",
+        "snippet": "    private static String getJavaVersionTrimmed() {\n        if (JAVA_VERSION != null) {\n            for (int i = 0; i < JAVA_VERSION.length(); i++) {\n                char ch = JAVA_VERSION.charAt(i);\n                if (ch >= '0' && ch <= '9') {\n                    return JAVA_VERSION.substring(i);\n                }\n            }\n        }\n        return null;\n    }\n",
+        "begin_line": 1184,
+        "end_line": 1194,
+        "comment": "\n     * Trims the text of the java version to start with numbers.\n     * \n     * @return the trimmed java version\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getJavaVersionMatches#1202",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getJavaVersionMatches(java.lang.String)",
+        "snippet": "    private static boolean getJavaVersionMatches(String versionPrefix) {\n        if (JAVA_VERSION_TRIMMED == null) {\n            return false;\n        }\n        return JAVA_VERSION_TRIMMED.startsWith(versionPrefix);\n    }    \n",
+        "begin_line": 1202,
+        "end_line": 1207,
+        "comment": "\n     * <p>Decides if the java version matches.</p>\n     * \n     * @param versionPrefix  the prefix for the java version\n     * @return true if matches, or false if not or can't determine\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getOSMatches#1215",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getOSMatches(java.lang.String)",
+        "snippet": "    private static boolean getOSMatches(String osNamePrefix) {\n        if (OS_NAME == null) {\n            return false;\n        }\n        return OS_NAME.startsWith(osNamePrefix);\n    }    \n",
+        "begin_line": 1215,
+        "end_line": 1220,
+        "comment": "\n     * <p>Decides if the operating system matches.</p>\n     * \n     * @param osNamePrefix  the prefix for the os name\n     * @return true if matches, or false if not or can't determine\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getOSMatches#1229",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getOSMatches(java.lang.String, java.lang.String)",
+        "snippet": "    private static boolean getOSMatches(String osNamePrefix, String osVersionPrefix) {\n        if (OS_NAME == null || OS_VERSION == null) {\n            return false;\n        }\n        return OS_NAME.startsWith(osNamePrefix) && OS_VERSION.startsWith(osVersionPrefix);\n    }    \n",
+        "begin_line": 1229,
+        "end_line": 1234,
+        "comment": "\n     * <p>Decides if the operating system matches.</p>\n     * \n     * @param osNamePrefix  the prefix for the os name\n     * @param osVersionPrefix  the prefix for the version\n     * @return true if matches, or false if not or can't determine\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.getSystemProperty#1247",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.getSystemProperty(java.lang.String)",
+        "snippet": "    private static String getSystemProperty(String property) {\n        try {\n            return System.getProperty(property);\n        } catch (SecurityException ex) {\n            // we are not allowed to look at this property\n            System.err.println(\n                \"Caught a SecurityException reading the system property '\" + property \n                + \"'; the SystemUtils property value will default to null.\"\n            );\n            return null;\n        }\n    }\n",
+        "begin_line": 1247,
+        "end_line": 1258,
+        "comment": "\n     * <p>Gets a System property, defaulting to <code>null</code> if the property\n     * cannot be read.</p>\n     *\n     * <p>If a <code>SecurityException</code> is caught, the return\n     * value is <code>null</code> and a message is written to <code>System.err</code>.</p>\n     * \n     * @param property the system property name\n     * @return the system property value or <code>null</code> if a security problem occurs\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SystemUtils.isJavaVersionAtLeast#1273",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/lang3/SystemUtils.java",
+        "class_name": "org.apache.commons.lang3.SystemUtils",
+        "signature": "org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast(float)",
+        "snippet": "    public static boolean isJavaVersionAtLeast(float requiredVersion) {\n        return JAVA_VERSION_FLOAT >= requiredVersion;\n    }\n",
+        "begin_line": 1273,
+        "end_line": 1275,
+        "comment": "\n     * <p>Is the Java version at least the requested version.</p>\n     *\n     * <p>Example input:</p>\n     * <ul>\n     *  <li><code>1.2f</code> to test for JDK 1.2</li>\n     *  <li><code>1.31f</code> to test for JDK 1.3.1</li>\n     * </ul>\n     * \n     * @param requiredVersion  the required version, for example 1.31f\n     * @return <code>true</code> if the actual version is equal or greater\n     *  than the required version\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    }
+]

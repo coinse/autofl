@@ -1,0 +1,112 @@
+[
+    {
+        "name": "tests.keras.backend.reference_operations.wrapper#11",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.wrapper(*args)",
+        "snippet": "    def wrapper(*args):\n        x = args[0]\n        w = args[1]\n        if x.ndim == 3:\n            w = np.flipud(w)\n            w = np.transpose(w, (1, 2, 0))\n            if args[3] == 'channels_last':\n                x = np.transpose(x, (0, 2, 1))\n        elif x.ndim == 4:\n            w = np.fliplr(np.flipud(w))\n            w = np.transpose(w, (2, 3, 0, 1))\n            if args[3] == 'channels_last':\n                x = np.transpose(x, (0, 3, 1, 2))\n        else:\n            w = np.flip(np.fliplr(np.flipud(w)), axis=2)\n            w = np.transpose(w, (3, 4, 0, 1, 2))\n            if args[3] == 'channels_last':\n                x = np.transpose(x, (0, 4, 1, 2, 3))\n\n        y = func(x, w, args[2], args[3])\n\n        if args[3] == 'channels_last':\n            if y.ndim == 3:\n                y = np.transpose(y, (0, 2, 1))\n            elif y.ndim == 4:\n                y = np.transpose(y, (0, 2, 3, 1))\n            else:\n                y = np.transpose(y, (0, 2, 3, 4, 1))\n\n        return y",
+        "begin_line": 11,
+        "end_line": 40,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.backend.reference_operations.conv#46",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.conv(x, w, padding, data_format)",
+        "snippet": "def conv(x, w, padding, data_format):\n    y = []\n    for i in range(x.shape[0]):\n        _y = []\n        for j in range(w.shape[1]):\n            __y = []\n            for k in range(w.shape[0]):\n                __y.append(signal.convolve(x[i, k], w[k, j], mode=padding))\n            _y.append(np.sum(np.stack(__y, axis=-1), axis=-1))\n        y.append(_y)\n    y = np.array(y)\n    return y",
+        "begin_line": 46,
+        "end_line": 57,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.backend.reference_operations.depthwise_conv#61",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.depthwise_conv(x, w, padding, data_format)",
+        "snippet": "def depthwise_conv(x, w, padding, data_format):\n    y = []\n    for i in range(x.shape[0]):\n        _y = []\n        for j in range(w.shape[0]):\n            __y = []\n            for k in range(w.shape[1]):\n                __y.append(signal.convolve(x[i, j], w[j, k], mode=padding))\n            _y.append(np.stack(__y, axis=0))\n        y.append(np.concatenate(_y, axis=0))\n    y = np.array(y)\n    return y",
+        "begin_line": 61,
+        "end_line": 72,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.backend.reference_operations.separable_conv#75",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.separable_conv(x, w1, w2, padding, data_format)",
+        "snippet": "def separable_conv(x, w1, w2, padding, data_format):\n    x2 = depthwise_conv(x, w1, padding, data_format)\n    return conv(x2, w2, padding, data_format)",
+        "begin_line": 75,
+        "end_line": 77,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.backend.reference_operations.pool#80",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.pool(x, pool_size, strides, padding, data_format, pool_mode)",
+        "snippet": "def pool(x, pool_size, strides, padding, data_format, pool_mode):\n    if data_format == 'channels_last':\n        if x.ndim == 3:\n            x = np.transpose(x, (0, 2, 1))\n        elif x.ndim == 4:\n            x = np.transpose(x, (0, 3, 1, 2))\n        else:\n            x = np.transpose(x, (0, 4, 1, 2, 3))\n\n    if padding == 'same':\n        pad = [(0, 0), (0, 0)] + [(s // 2, s // 2) for s in pool_size]\n        x = np.pad(x, pad, 'constant', constant_values=-np.inf)\n\n    # indexing trick\n    x = np.pad(x, [(0, 0), (0, 0)] + [(0, 1) for _ in pool_size],\n               'constant', constant_values=0)\n\n    if x.ndim == 3:\n        y = [x[:, :, k:k1:strides[0]]\n             for (k, k1) in zip(range(pool_size[0]), range(-pool_size[0], 0))]\n    elif x.ndim == 4:\n        y = []\n        for (k, k1) in zip(range(pool_size[0]), range(-pool_size[0], 0)):\n            for (l, l1) in zip(range(pool_size[1]), range(-pool_size[1], 0)):\n                y.append(x[:, :, k:k1:strides[0], l:l1:strides[1]])\n    else:\n        y = []\n        for (k, k1) in zip(range(pool_size[0]), range(-pool_size[0], 0)):\n            for (l, l1) in zip(range(pool_size[1]), range(-pool_size[1], 0)):\n                for (m, m1) in zip(range(pool_size[2]), range(-pool_size[2], 0)):\n                    y.append(x[:, :, k:k1:strides[0], l:l1:strides[1], m:m1:strides[2]])\n    y = np.stack(y, axis=-1)\n    if pool_mode == 'avg':\n        y = np.mean(np.ma.masked_invalid(y), axis=-1).data\n    elif pool_mode == 'max':\n        y = np.max(y, axis=-1)\n\n    if data_format == 'channels_last':\n        if y.ndim == 3:\n            y = np.transpose(y, (0, 2, 1))\n        elif y.ndim == 4:\n            y = np.transpose(y, (0, 2, 3, 1))\n        else:\n            y = np.transpose(y, (0, 2, 3, 4, 1))\n\n    return y",
+        "begin_line": 80,
+        "end_line": 125,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.backend.reference_operations.rnn#128",
+        "src_path": "tests/keras/backend/reference_operations.py",
+        "class_name": "tests.keras.backend.reference_operations",
+        "signature": "tests.keras.backend.reference_operations.rnn(x, w, init, go_backwards=False, mask=None, unroll=False, input_length=None)",
+        "snippet": "def rnn(x, w, init, go_backwards=False, mask=None, unroll=False, input_length=None):\n    w_i, w_h, w_o = w\n    h = []\n    o = []\n\n    if go_backwards:\n        t_list = range(x.shape[1] - 1, -1, -1)\n    else:\n        t_list = range(x.shape[1])\n\n    if mask is not None:\n        from keras import backend as K\n        np_mask = K.eval(mask)\n    else:\n        np_mask = None\n\n    for (i, t) in enumerate(t_list):\n        h_t = np.dot(x[:, t], w_i)\n\n        if w_h is not None:\n            prev = h[i - 1] if i > 0 else init\n            h_t1 = np.dot(prev, w_h)\n            if np_mask is not None:\n                h_t1[np_mask[:, t] == 0] = prev[np_mask[:, t] == 0]\n        else:\n            h_t1 = 0\n\n        o_t = h_t + h_t1\n        if w_o is not None:\n            o_t = np.dot(o_t, w_o)\n        o.append(o_t)\n\n        if np_mask is not None:\n            h_t = h_t * np_mask[:, t].reshape(-1, 1)\n        h.append(h_t + h_t1)\n\n    return o[-1], np.stack(o, axis=1), np.stack(h, axis=1)",
+        "begin_line": 128,
+        "end_line": 164,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.applications.imagenet_utils_test.test_preprocess_input#10",
+        "src_path": "tests/keras/applications/imagenet_utils_test.py",
+        "class_name": "tests.keras.applications.imagenet_utils_test",
+        "signature": "tests.keras.applications.imagenet_utils_test.test_preprocess_input()",
+        "snippet": "def test_preprocess_input():\n    # Test image batch with float and int image input\n    x = np.random.uniform(0, 255, (2, 10, 10, 3))\n    xint = x.astype('int32')\n    assert utils.preprocess_input(x).shape == x.shape\n    assert utils.preprocess_input(xint).shape == xint.shape\n\n    out1 = utils.preprocess_input(x, 'channels_last')\n    out1int = utils.preprocess_input(xint, 'channels_last')\n    out2 = utils.preprocess_input(np.transpose(x, (0, 3, 1, 2)),\n                                  'channels_first')\n    out2int = utils.preprocess_input(np.transpose(xint, (0, 3, 1, 2)),\n                                     'channels_first')\n    assert_allclose(out1, out2.transpose(0, 2, 3, 1))\n    assert_allclose(out1int, out2int.transpose(0, 2, 3, 1))\n\n    # Test single image\n    x = np.random.uniform(0, 255, (10, 10, 3))\n    xint = x.astype('int32')\n    assert utils.preprocess_input(x).shape == x.shape\n    assert utils.preprocess_input(xint).shape == xint.shape\n\n    out1 = utils.preprocess_input(x, 'channels_last')\n    out1int = utils.preprocess_input(xint, 'channels_last')\n    out2 = utils.preprocess_input(np.transpose(x, (2, 0, 1)),\n                                  'channels_first')\n    out2int = utils.preprocess_input(np.transpose(xint, (2, 0, 1)),\n                                     'channels_first')\n    assert_allclose(out1, out2.transpose(1, 2, 0))\n    assert_allclose(out1int, out2int.transpose(1, 2, 0))",
+        "begin_line": 10,
+        "end_line": 39,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.applications.imagenet_utils_test.test_preprocess_input_symbolic#42",
+        "src_path": "tests/keras/applications/imagenet_utils_test.py",
+        "class_name": "tests.keras.applications.imagenet_utils_test",
+        "signature": "tests.keras.applications.imagenet_utils_test.test_preprocess_input_symbolic()",
+        "snippet": "def test_preprocess_input_symbolic():\n    # Test image batch\n    x = np.random.uniform(0, 255, (2, 10, 10, 3))\n    inputs = Input(shape=x.shape[1:])\n    outputs = Lambda(utils.preprocess_input, output_shape=x.shape[1:])(inputs)\n    model = Model(inputs, outputs)\n    assert model.predict(x).shape == x.shape\n\n    outputs1 = Lambda(lambda x: utils.preprocess_input(x, 'channels_last'),\n                      output_shape=x.shape[1:])(inputs)\n    model1 = Model(inputs, outputs1)\n    out1 = model1.predict(x)\n    x2 = np.transpose(x, (0, 3, 1, 2))\n    inputs2 = Input(shape=x2.shape[1:])\n    outputs2 = Lambda(lambda x: utils.preprocess_input(x, 'channels_first'),\n                      output_shape=x2.shape[1:])(inputs2)\n    model2 = Model(inputs2, outputs2)\n    out2 = model2.predict(x2)\n    assert_allclose(out1, out2.transpose(0, 2, 3, 1))\n\n    # Test single image\n    x = np.random.uniform(0, 255, (10, 10, 3))\n    inputs = Input(shape=x.shape)\n    outputs = Lambda(utils.preprocess_input, output_shape=x.shape)(inputs)\n    model = Model(inputs, outputs)\n    assert model.predict(x[np.newaxis])[0].shape == x.shape\n\n    outputs1 = Lambda(lambda x: utils.preprocess_input(x, 'channels_last'),\n                      output_shape=x.shape)(inputs)\n    model1 = Model(inputs, outputs1)\n    out1 = model1.predict(x[np.newaxis])[0]\n    x2 = np.transpose(x, (2, 0, 1))\n    inputs2 = Input(shape=x2.shape)\n    outputs2 = Lambda(lambda x: utils.preprocess_input(x, 'channels_first'),\n                      output_shape=x2.shape)(inputs2)\n    model2 = Model(inputs2, outputs2)\n    out2 = model2.predict(x2[np.newaxis])[0]\n    assert_allclose(out1, out2.transpose(1, 2, 0))",
+        "begin_line": 42,
+        "end_line": 79,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.applications.imagenet_utils_test.test_decode_predictions#82",
+        "src_path": "tests/keras/applications/imagenet_utils_test.py",
+        "class_name": "tests.keras.applications.imagenet_utils_test",
+        "signature": "tests.keras.applications.imagenet_utils_test.test_decode_predictions()",
+        "snippet": "def test_decode_predictions():\n    x = np.zeros((2, 1000))\n    x[0, 372] = 1.0\n    x[1, 549] = 1.0\n    outs = utils.decode_predictions(x, top=1)\n    scores = [out[0][2] for out in outs]\n    assert scores[0] == scores[1]\n\n    # the numbers of columns and ImageNet classes are not identical.\n    with pytest.raises(ValueError):\n        utils.decode_predictions(np.ones((2, 100)))",
+        "begin_line": 82,
+        "end_line": 92,
+        "comment": "",
+        "is_bug": false
+    },
+    {
+        "name": "tests.keras.applications.imagenet_utils_test.test_obtain_input_shape#95",
+        "src_path": "tests/keras/applications/imagenet_utils_test.py",
+        "class_name": "tests.keras.applications.imagenet_utils_test",
+        "signature": "tests.keras.applications.imagenet_utils_test.test_obtain_input_shape()",
+        "snippet": "def test_obtain_input_shape():\n    # input_shape and default_size are not identical.\n    with pytest.raises(ValueError):\n        utils._obtain_input_shape(\n            input_shape=(224, 224, 3),\n            default_size=299,\n            min_size=139,\n            data_format='channels_last',\n            require_flatten=True,\n            weights='imagenet')\n\n    # Test invalid use cases\n    for data_format in ['channels_last', 'channels_first']:\n\n        # test warning\n        shape = (139, 139)\n        input_shape = shape + (99,) if data_format == 'channels_last' else (99,) + shape\n        with pytest.warns(UserWarning):\n            utils._obtain_input_shape(\n                input_shape=input_shape,\n                default_size=None,\n                min_size=139,\n                data_format=data_format,\n                require_flatten=False,\n                weights='fake_weights')\n\n        # input_shape is smaller than min_size.\n        shape = (100, 100)\n        input_shape = shape + (3,) if data_format == 'channels_last' else (3,) + shape\n        with pytest.raises(ValueError):\n            utils._obtain_input_shape(\n                input_shape=input_shape,\n                default_size=None,\n                min_size=139,\n                data_format=data_format,\n                require_flatten=False)\n\n        # shape is 1D.\n        shape = (100,)\n        input_shape = shape + (3,) if data_format == 'channels_last' else (3,) + shape\n        with pytest.raises(ValueError):\n            utils._obtain_input_shape(\n                input_shape=input_shape,\n                default_size=None,\n                min_size=139,\n                data_format=data_format,\n                require_flatten=False)\n\n        # the number of channels is 5 not 3.\n        shape = (100, 100)\n        input_shape = shape + (5,) if data_format == 'channels_last' else (5,) + shape\n        with pytest.raises(ValueError):\n            utils._obtain_input_shape(\n                input_shape=input_shape,\n                default_size=None,\n                min_size=139,\n                data_format=data_format,\n                require_flatten=False)\n\n        # require_flatten=True with dynamic input shape.\n        with pytest.raises(ValueError):\n            utils._obtain_input_shape(\n                input_shape=None,\n                default_size=None,\n                min_size=139,\n                data_format='channels_first',\n                require_flatten=True)\n\n    # test include top\n    assert utils._obtain_input_shape(\n        input_shape=(3, 200, 200),\n        default_size=None,\n        min_size=139,\n        data_format='channels_first',\n        require_flatten=True) == (3, 200, 200)\n\n    assert utils._obtain_input_shape(\n        input_shape=None,\n        default_size=None,\n        min_size=139,\n        data_format='channels_last',\n        require_flatten=False) == (None, None, 3)\n\n    assert utils._obtain_input_shape(\n        input_shape=None,\n        default_size=None,\n        min_size=139,\n        data_format='channels_first',\n        require_flatten=False) == (3, None, None)\n\n    assert utils._obtain_input_shape(\n        input_shape=None,\n        default_size=None,\n        min_size=139,\n        data_format='channels_last',\n        require_flatten=False) == (None, None, 3)\n\n    assert utils._obtain_input_shape(\n        input_shape=(150, 150, 3),\n        default_size=None,\n        min_size=139,\n        data_format='channels_last',\n        require_flatten=False) == (150, 150, 3)\n\n    assert utils._obtain_input_shape(\n        input_shape=(3, None, None),\n        default_size=None,\n        min_size=139,\n        data_format='channels_first',\n        require_flatten=False) == (3, None, None)",
+        "begin_line": 95,
+        "end_line": 204,
+        "comment": "",
+        "is_bug": false
+    }
+]

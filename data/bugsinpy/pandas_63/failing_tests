@@ -1,0 +1,69 @@
+coverage run -m pytest pandas/tests/indexing/test_scalar.py::TestScalar2::test_series_at_raises_type_error
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/indexing/test_scalar.py F                                   [100%]
+
+=================================== FAILURES ===================================
+_________________ TestScalar2.test_series_at_raises_type_error _________________
+
+self = <pandas.tests.indexing.test_scalar.TestScalar2 object at 0x7f2f17400ca0>
+
+    def test_series_at_raises_type_error(self):
+        # at should not fallback
+        # GH 7814
+        # GH#31724 .at should match .loc
+        ser = Series([1, 2, 3], index=list("abc"))
+        result = ser.at["a"]
+        assert result == 1
+        result = ser.loc["a"]
+        assert result == 1
+    
+        msg = (
+            "cannot do label indexing on <class 'pandas.core.indexes.base.Index'> "
+            r"with these indexers \[0\] of <class 'int'>"
+        )
+        with pytest.raises(TypeError, match=msg):
+>           ser.at[0]
+
+pandas/tests/indexing/test_scalar.py:147: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/indexing.py:2059: in __getitem__
+    key = self._convert_key(key)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <pandas.core.indexing._AtIndexer object at 0x7f2f173f9f40>, key = (0,)
+is_setter = False
+
+    def _convert_key(self, key, is_setter: bool = False):
+        """
+        Require they keys to be the same type as the index. (so we don't
+        fallback)
+        """
+        # allow arbitrary setting
+        if is_setter:
+            return list(key)
+    
+        for ax, i in zip(self.obj.axes, key):
+            if ax.is_integer():
+                if not is_integer(i):
+                    raise ValueError(
+                        "At based indexing on an integer index "
+                        "can only have integer indexers"
+                    )
+            else:
+                if is_integer(i) and not (ax.holds_integer() or ax.is_floating()):
+>                   raise ValueError(
+                        "At based indexing on an non-integer "
+                        "index can only have non-integer "
+                        "indexers"
+                    )
+E                   ValueError: At based indexing on an non-integer index can only have non-integer indexers
+
+pandas/core/indexing.py:2099: ValueError
+=========================== short test summary info ============================
+FAILED pandas/tests/indexing/test_scalar.py::TestScalar2::test_series_at_raises_type_error
+============================== 1 failed in 0.35s ===============================

@@ -1,0 +1,674 @@
+[
+    {
+        "name": "EstimatedParameter.EstimatedParameter#57",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/EstimatedParameter.java",
+        "class_name": "org.apache.commons.math.estimation.EstimatedParameter",
+        "signature": "org.apache.commons.math.estimation.EstimatedParameter.EstimatedParameter(java.lang.String, double, boolean)",
+        "snippet": "  public EstimatedParameter(String name,\n                            double firstEstimate,\n                            boolean bound) {\n    this.name  = name;\n    estimate   = firstEstimate;\n    this.bound = bound;\n  }\n",
+        "begin_line": 57,
+        "end_line": 63,
+        "comment": " Simple constructor.\n   * Build an instance from a first estimate of the parameter and a\n   * bound flag\n   * @param name name of the parameter\n   * @param firstEstimate first estimate of the parameter\n   * @param bound flag, should be true if the parameter is bound\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.getAllParameters#57",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.getAllParameters()",
+        "snippet": "    public EstimatedParameter[] getAllParameters() {\n        return (EstimatedParameter[]) parameters.toArray(new EstimatedParameter[parameters.size()]);\n    }\n",
+        "begin_line": 57,
+        "end_line": 59,
+        "comment": " \n     * Get all the parameters of the problem.\n     * @return parameters\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.7071
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.getCovariances#158",
+        "is_bug": true,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.getCovariances(org.apache.commons.math.estimation.EstimationProblem)",
+        "snippet": "    public double[][] getCovariances(EstimationProblem problem)\n      throws EstimationException {\n \n        // set up the jacobian\n        updateJacobian();\n\n        // compute transpose(J).J, avoiding building big intermediate matrices\n        final int rows = problem.getMeasurements().length;\n        final int cols = problem.getAllParameters().length;\n        final int max  = cols * rows;\n        double[][] jTj = new double[cols][cols];\n        for (int i = 0; i < cols; ++i) {\n            for (int j = i; j < cols; ++j) {\n                double sum = 0;\n                for (int k = 0; k < max; k += cols) {\n                    sum += jacobian[k + i] * jacobian[k + j];\n                }\n                jTj[i][j] = sum;\n                jTj[j][i] = sum;\n            }\n        }\n\n        try {\n            // compute the covariances matrix\n            return new RealMatrixImpl(jTj).inverse().getData();\n        } catch (InvalidMatrixException ime) {\n            throw new EstimationException(\"unable to compute covariances: singular problem\",\n                                          new Object[0]);\n        }\n\n    }\n",
+        "begin_line": 158,
+        "end_line": 188,
+        "comment": "\n     * Get the covariance matrix of unbound estimated parameters.\n     * @param problem estimation problem\n     * @return covariance matrix\n     * @exception EstimationException if the covariance matrix\n     * cannot be computed (singular problem)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "GaussNewtonEstimator.estimate#102",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/GaussNewtonEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.GaussNewtonEstimator",
+        "signature": "org.apache.commons.math.estimation.GaussNewtonEstimator.estimate(org.apache.commons.math.estimation.EstimationProblem)",
+        "snippet": "    public void estimate(EstimationProblem problem)\n    throws EstimationException {\n\n        initializeEstimate(problem);\n\n        // work matrices\n        double[] grad             = new double[parameters.length];\n        RealMatrixImpl bDecrement = new RealMatrixImpl(parameters.length, 1);\n        double[][] bDecrementData = bDecrement.getDataRef();\n        RealMatrixImpl wGradGradT = new RealMatrixImpl(parameters.length, parameters.length);\n        double[][] wggData        = wGradGradT.getDataRef();\n\n        // iterate until convergence is reached\n        double previous = Double.POSITIVE_INFINITY;\n        do {\n\n            // build the linear problem\n            incrementJacobianEvaluationsCounter();\n            RealMatrix b = new RealMatrixImpl(parameters.length, 1);\n            RealMatrix a = new RealMatrixImpl(parameters.length, parameters.length);\n            for (int i = 0; i < measurements.length; ++i) {\n                if (! measurements [i].isIgnored()) {\n\n                    double weight   = measurements[i].getWeight();\n                    double residual = measurements[i].getResidual();\n\n                    // compute the normal equation\n                    for (int j = 0; j < parameters.length; ++j) {\n                        grad[j] = measurements[i].getPartial(parameters[j]);\n                        bDecrementData[j][0] = weight * residual * grad[j];\n                    }\n\n                    // build the contribution matrix for measurement i\n                    for (int k = 0; k < parameters.length; ++k) {\n                        double[] wggRow = wggData[k];\n                        double gk = grad[k];\n                        for (int l = 0; l < parameters.length; ++l) {\n                            wggRow[l] =  weight * gk * grad[l];\n                        }\n                    }\n\n                    // update the matrices\n                    a = a.add(wGradGradT);\n                    b = b.add(bDecrement);\n\n                }\n            }\n\n            try {\n\n                // solve the linearized least squares problem\n                RealMatrix dX = a.solve(b);\n\n                // update the estimated parameters\n                for (int i = 0; i < parameters.length; ++i) {\n                    parameters[i].setEstimate(parameters[i].getEstimate() + dX.getEntry(i, 0));\n                }\n\n            } catch(InvalidMatrixException e) {\n                throw new EstimationException(\"unable to solve: singular problem\", new Object[0]);\n            }\n\n\n            previous = cost;\n            updateResidualsAndCost();\n\n        } while ((getCostEvaluations() < 2) ||\n                 (Math.abs(previous - cost) > (cost * steadyStateThreshold) &&\n                  (Math.abs(cost) > convergence)));\n\n    }\n",
+        "begin_line": 102,
+        "end_line": 172,
+        "comment": " \n     * Solve an estimation problem using a least squares criterion.\n     *\n     * <p>This method set the unbound parameters of the given problem\n     * starting from their current values through several iterations. At\n     * each step, the unbound parameters are changed in order to\n     * minimize a weighted least square criterion based on the\n     * measurements of the problem.</p>\n     *\n     * <p>The iterations are stopped either when the criterion goes\n     * below a physical threshold under which improvement are considered\n     * useless or when the algorithm is unable to improve it (even if it\n     * is still high). The first condition that is met stops the\n     * iterations. If the convergence it nos reached before the maximum\n     * number of iterations, an {@link EstimationException} is\n     * thrown.</p>\n     *\n     * @param problem estimation problem to solve\n     * @exception EstimationException if the problem cannot be solved\n     *\n     * @see EstimationProblem\n     *\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3162
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.solve#709",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.solve(org.apache.commons.math.linear.RealMatrix)",
+        "snippet": "    public RealMatrix solve(RealMatrix b) throws IllegalArgumentException, InvalidMatrixException  {\n        if (b.getRowDimension() != this.getRowDimension()) {\n            throw new IllegalArgumentException(\"Incorrect row dimension\");\n        }\n        if (!this.isSquare()) {\n            throw new InvalidMatrixException(\"coefficient matrix is not square\");\n        }\n        if (this.isSingular()) { // side effect: compute LU decomp\n            throw new InvalidMatrixException(\"Matrix is singular.\");\n        }\n\n        int nCol = this.getColumnDimension();\n        int nColB = b.getColumnDimension();\n        int nRowB = b.getRowDimension();\n\n        // Apply permutations to b\n        double[][] bp = new double[nRowB][nColB];\n        for (int row = 0; row < nRowB; row++) {\n            for (int col = 0; col < nColB; col++) {\n                bp[row][col] = b.getEntry(permutation[row], col);\n            }\n        }\n\n        // Solve LY = b\n        for (int col = 0; col < nCol; col++) {\n            for (int i = col + 1; i < nCol; i++) {\n                for (int j = 0; j < nColB; j++) {\n                    bp[i][j] -= bp[col][j] * lu[i][col];\n                }\n            }\n        }\n\n        // Solve UX = Y\n        for (int col = nCol - 1; col >= 0; col--) {\n            for (int j = 0; j < nColB; j++) {\n                bp[col][j] /= lu[col][col];\n            }\n            for (int i = 0; i < col; i++) {\n                for (int j = 0; j < nColB; j++) {\n                    bp[i][j] -= bp[col][j] * lu[i][col];\n                }\n            }\n        }\n\n        RealMatrixImpl outMat = new RealMatrixImpl(bp);\n        return outMat;\n    }\n",
+        "begin_line": 709,
+        "end_line": 755,
+        "comment": "\n     * Returns a matrix of (column) solution vectors for linear systems with\n     * coefficient matrix = this and constant vectors = columns of\n     * <code>b</code>.\n     *\n     * @param b  matrix of constant vectors forming RHS of linear systems to\n     * to solve\n     * @return matrix of solution vectors\n     * @throws IllegalArgumentException if this.rowDimension != row dimension\n     * @throws InvalidMatrixException if this matrix is not square or is singular\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2887
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "WeightedMeasurement.WeightedMeasurement#79",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/WeightedMeasurement.java",
+        "class_name": "org.apache.commons.math.estimation.WeightedMeasurement",
+        "signature": "org.apache.commons.math.estimation.WeightedMeasurement.WeightedMeasurement(double, double, boolean)",
+        "snippet": "  public WeightedMeasurement(double weight, double measuredValue,\n                             boolean ignored) {\n    this.weight        = weight;\n    this.measuredValue = measuredValue;\n    this.ignored       = ignored;\n  }\n",
+        "begin_line": 79,
+        "end_line": 84,
+        "comment": " Simple constructor.\n   * \n   * Build a measurement with the given parameters\n   * \n   * @param weight weight of the measurement in the least squares problem\n   * @param measuredValue measured value\n   * @param ignored true if the measurement should be ignored\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2887
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "WeightedMeasurement.setIgnored#145",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/WeightedMeasurement.java",
+        "class_name": "org.apache.commons.math.estimation.WeightedMeasurement",
+        "signature": "org.apache.commons.math.estimation.WeightedMeasurement.setIgnored(boolean)",
+        "snippet": "  public void setIgnored(boolean ignored) {\n    this.ignored = ignored;\n  }\n",
+        "begin_line": 145,
+        "end_line": 147,
+        "comment": " \n   * Set the ignore flag to the specified value\n   * Setting the ignore flag to true allow to reject wrong\n   * measurements, which sometimes can be detected only rather late.\n   * \n   * @param ignored value for the ignore flag\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2887
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.isSingular#587",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.isSingular()",
+        "snippet": "    public boolean isSingular() {\n        if (lu == null) {\n            try {\n                luDecompose();\n                return false;\n            } catch (InvalidMatrixException ex) {\n                return true;\n            }\n        } else { // LU decomp must have been successfully performed\n            return false; // so the matrix is not singular\n        }\n    }\n",
+        "begin_line": 587,
+        "end_line": 598,
+        "comment": "\n     * @return true if the matrix is singular\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.luDecompose#775",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.luDecompose()",
+        "snippet": "    public void luDecompose() throws InvalidMatrixException {\n\n        int nRows = this.getRowDimension();\n        int nCols = this.getColumnDimension();\n        if (nRows != nCols) {\n            throw new InvalidMatrixException(\"LU decomposition requires that the matrix be square.\");\n        }\n        lu = this.getData();\n\n        // Initialize permutation array and parity\n        permutation = new int[nRows];\n        for (int row = 0; row < nRows; row++) {\n            permutation[row] = row;\n        }\n        parity = 1;\n\n        // Loop over columns\n        for (int col = 0; col < nCols; col++) {\n\n            double sum = 0;\n\n            // upper\n            for (int row = 0; row < col; row++) {\n                sum = lu[row][col];\n                for (int i = 0; i < row; i++) {\n                    sum -= lu[row][i] * lu[i][col];\n                }\n                lu[row][col] = sum;\n            }\n\n            // lower\n            int max = col; // permutation row\n            double largest = 0d;\n            for (int row = col; row < nRows; row++) {\n                sum = lu[row][col];\n                for (int i = 0; i < col; i++) {\n                    sum -= lu[row][i] * lu[i][col];\n                }\n                lu[row][col] = sum;\n\n                // maintain best permutation choice\n                if (Math.abs(sum) > largest) {\n                    largest = Math.abs(sum);\n                    max = row;\n                }\n            }\n\n            // Singularity check\n            if (Math.abs(lu[max][col]) < TOO_SMALL) {\n                lu = null;\n                throw new InvalidMatrixException(\"matrix is singular\");\n            }\n\n            // Pivot if necessary\n            if (max != col) {\n                double tmp = 0;\n                for (int i = 0; i < nCols; i++) {\n                    tmp = lu[max][i];\n                    lu[max][i] = lu[col][i];\n                    lu[col][i] = tmp;\n                }\n                int temp = permutation[max];\n                permutation[max] = permutation[col];\n                permutation[col] = temp;\n                parity = -parity;\n            }\n\n            //Divide the lower elements by the \"winning\" diagonal elt.\n            for (int row = col + 1; row < nRows; row++) {\n                lu[row][col] /= lu[col][col];\n            }\n        }\n    }\n",
+        "begin_line": 775,
+        "end_line": 847,
+        "comment": "\n     * Computes a new\n     * <a href=\"http://www.math.gatech.edu/~bourbaki/math2601/Web-notes/2num.pdf\">\n     * LU decomposition</a> for this matrix, storing the result for use by other methods.\n     * <p>\n     * <strong>Implementation Note</strong>:<br>\n     * Uses <a href=\"http://www.damtp.cam.ac.uk/user/fdl/people/sd/lectures/nummeth98/linear.htm\">\n     * Crout's algorithm</a>, with partial pivoting.</p>\n     * <p>\n     * <strong>Usage Note</strong>:<br>\n     * This method should rarely be invoked directly. Its only use is\n     * to force recomputation of the LU decomposition when changes have been\n     * made to the underlying data using direct array references. Changes\n     * made using setXxx methods will trigger recomputation when needed\n     * automatically.</p>\n     *\n     * @throws InvalidMatrixException if the matrix is non-square or singular.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.SimpleEstimationProblem#48",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.SimpleEstimationProblem()",
+        "snippet": "    public SimpleEstimationProblem() {\n        parameters   = new ArrayList();\n        measurements = new ArrayList();\n    }\n",
+        "begin_line": 48,
+        "end_line": 51,
+        "comment": "\n     * Build an empty instance without parameters nor measurements.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.getUnboundParameters#65",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.getUnboundParameters()",
+        "snippet": "    public EstimatedParameter[] getUnboundParameters() {\n\n        // filter the unbound parameters\n        List unbound = new ArrayList(parameters.size());\n        for (Iterator iterator = parameters.iterator(); iterator.hasNext();) {\n            EstimatedParameter p = (EstimatedParameter) iterator.next();\n            if (! p.isBound()) {\n                unbound.add(p);\n            }\n        }\n\n        // convert to an array\n        return (EstimatedParameter[]) unbound.toArray(new EstimatedParameter[unbound.size()]);\n        \n    }\n",
+        "begin_line": 65,
+        "end_line": 79,
+        "comment": " \n     * Get the unbound parameters of the problem.\n     * @return unbound parameters\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.getMeasurements#85",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.getMeasurements()",
+        "snippet": "    public WeightedMeasurement[] getMeasurements() {\n        return (WeightedMeasurement[]) measurements.toArray(new WeightedMeasurement[measurements.size()]);\n    }\n",
+        "begin_line": 85,
+        "end_line": 87,
+        "comment": " \n     * Get the measurements of an estimation problem.\n     * @return measurements\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.addParameter#92",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.addParameter(org.apache.commons.math.estimation.EstimatedParameter)",
+        "snippet": "    protected void addParameter(EstimatedParameter p) {\n        parameters.add(p);\n    }\n",
+        "begin_line": 92,
+        "end_line": 94,
+        "comment": " Add a parameter to the problem.\n     * @param p parameter to add\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleEstimationProblem.addMeasurement#100",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/SimpleEstimationProblem.java",
+        "class_name": "org.apache.commons.math.estimation.SimpleEstimationProblem",
+        "signature": "org.apache.commons.math.estimation.SimpleEstimationProblem.addMeasurement(org.apache.commons.math.estimation.WeightedMeasurement)",
+        "snippet": "    protected void addMeasurement(WeightedMeasurement m) {\n        measurements.add(m);\n    }\n",
+        "begin_line": 100,
+        "end_line": 102,
+        "comment": "\n     * Add a new measurement to the set.\n     * @param m measurement to add\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EstimatedParameter.isBound#106",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/EstimatedParameter.java",
+        "class_name": "org.apache.commons.math.estimation.EstimatedParameter",
+        "signature": "org.apache.commons.math.estimation.EstimatedParameter.isBound()",
+        "snippet": "  public boolean isBound() {\n    return bound;\n  }\n",
+        "begin_line": 106,
+        "end_line": 108,
+        "comment": " Check if the parameter is bound\n   * @return true if the parameter is bound ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.getCostEvaluations#56",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.getCostEvaluations()",
+        "snippet": "    public final int getCostEvaluations() {\n        return costEvaluations;\n    }\n",
+        "begin_line": 56,
+        "end_line": 58,
+        "comment": "\n     * Get the number of cost evaluations.\n     * \n     * @return number of cost evaluations\n     * ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.add#146",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.add(org.apache.commons.math.linear.RealMatrix)",
+        "snippet": "    public RealMatrix add(RealMatrix m) throws IllegalArgumentException {\n        if (this.getColumnDimension() != m.getColumnDimension() ||\n                this.getRowDimension() != m.getRowDimension()) {\n            throw new IllegalArgumentException(\"matrix dimension mismatch\");\n        }\n        int rowCount = this.getRowDimension();\n        int columnCount = this.getColumnDimension();\n        double[][] outData = new double[rowCount][columnCount];\n        for (int row = 0; row < rowCount; row++) {\n            for (int col = 0; col < columnCount; col++) {\n                outData[row][col] = data[row][col] + m.getEntry(row, col);\n            }  \n        }\n        return new RealMatrixImpl(outData);\n    }\n",
+        "begin_line": 146,
+        "end_line": 160,
+        "comment": "\n     * Compute the sum of this and <code>m</code>.\n     *\n     * @param m    matrix to be added\n     * @return     this + m\n     * @throws  IllegalArgumentException if m is not the same size as this\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "WeightedMeasurement.isIgnored#154",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/WeightedMeasurement.java",
+        "class_name": "org.apache.commons.math.estimation.WeightedMeasurement",
+        "signature": "org.apache.commons.math.estimation.WeightedMeasurement.isIgnored()",
+        "snippet": "  public boolean isIgnored() {\n    return ignored;\n  }\n",
+        "begin_line": 154,
+        "end_line": 156,
+        "comment": " \n   * Check if this measurement should be ignored\n   * \n   * @return true if the measurement should be ignored\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "GaussNewtonEstimator.GaussNewtonEstimator#71",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/GaussNewtonEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.GaussNewtonEstimator",
+        "signature": "org.apache.commons.math.estimation.GaussNewtonEstimator.GaussNewtonEstimator(int, double, double)",
+        "snippet": "    public GaussNewtonEstimator(int maxCostEval,\n            double convergence,\n            double steadyStateThreshold) {\n        setMaxCostEval(maxCostEval);\n        this.steadyStateThreshold = steadyStateThreshold;\n        this.convergence          = convergence;\n    }\n",
+        "begin_line": 71,
+        "end_line": 77,
+        "comment": " \n     * Simple constructor.\n     *\n     * <p>This constructor builds an estimator and stores its convergence\n     * characteristics.</p>\n     *\n     * <p>An estimator is considered to have converged whenever either\n     * the criterion goes below a physical threshold under which\n     * improvements are considered useless or when the algorithm is\n     * unable to improve it (even if it is still high). The first\n     * condition that is met stops the iterations.</p>\n     *\n     * <p>The fact an estimator has converged does not mean that the\n     * model accurately fits the measurements. It only means no better\n     * solution can be found, it does not mean this one is good. Such an\n     * analysis is left to the caller.</p>\n     *\n     * <p>If neither conditions are fulfilled before a given number of\n     * iterations, the algorithm is considered to have failed and an\n     * {@link EstimationException} is thrown.</p>\n     *\n     * @param maxCostEval maximal number of cost evaluations allowed\n     * @param convergence criterion threshold below which we do not need\n     * to improve the criterion anymore\n     * @param steadyStateThreshold steady state detection threshold, the\n     * problem has converged has reached a steady state if\n     * <code>Math.abs (Jn - Jn-1) < Jn * convergence</code>, where\n     * <code>Jn</code> and <code>Jn-1</code> are the current and\n     * preceding criterion value (square sum of the weighted residuals\n     * of considered measurements).\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.setSubMatrix#388",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.setSubMatrix(double[][], int, int)",
+        "snippet": "    public void setSubMatrix(double[][] subMatrix, int row, int column) \n        throws MatrixIndexException {\n        if ((row < 0) || (column < 0)){\n            throw new MatrixIndexException\n                (\"invalid row or column index selection\");          \n        }\n        int nRows = subMatrix.length;\n        if (nRows == 0) {\n            throw new IllegalArgumentException(\n            \"Matrix must have at least one row.\"); \n        }\n        int nCols = subMatrix[0].length;\n        if (nCols == 0) {\n            throw new IllegalArgumentException(\n            \"Matrix must have at least one column.\"); \n        }\n        for (int r = 1; r < nRows; r++) {\n            if (subMatrix[r].length != nCols) {\n                throw new IllegalArgumentException(\n                \"All input rows must have the same length.\");\n            }\n        }       \n        if (data == null) {\n            if ((row > 0)||(column > 0)) throw new MatrixIndexException\n                (\"matrix must be initialized to perfom this method\");\n            data = new double[nRows][nCols];\n            System.arraycopy(subMatrix, 0, data, 0, subMatrix.length);          \n        }   \n        if (((nRows + row) > this.getRowDimension()) ||\n            (nCols + column > this.getColumnDimension()))\n            throw new MatrixIndexException(\n                    \"invalid row or column index selection\");                   \n        for (int i = 0; i < nRows; i++) {\n            System.arraycopy(subMatrix[i], 0, data[row + i], column, nCols);\n        } \n        lu = null;\n    }\n",
+        "begin_line": 388,
+        "end_line": 424,
+        "comment": "\n     * Replace the submatrix starting at <code>row, column</code> using data in\n     * the input <code>subMatrix</code> array. Indexes are 0-based.\n     * <p> \n     * Example:<br>\n     * Starting with <pre>\n     * 1  2  3  4\n     * 5  6  7  8\n     * 9  0  1  2\n     * </pre>\n     * and <code>subMatrix = {{3, 4} {5,6}}</code>, invoking \n     * <code>setSubMatrix(subMatrix,1,1))</code> will result in <pre>\n     * 1  2  3  4\n     * 5  3  4  8\n     * 9  5  6  2\n     * </pre></p>\n     * \n     * @param subMatrix  array containing the submatrix replacement data\n     * @param row  row coordinate of the top, left element to be replaced\n     * @param column  column coordinate of the top, left element to be replaced\n     * @throws MatrixIndexException  if subMatrix does not fit into this \n     *    matrix from element in (row, column) \n     * @throws IllegalArgumentException if <code>subMatrix</code> is not rectangular\n     *  (not all rows have the same length) or empty\n     * @throws NullPointerException if <code>subMatrix</code> is null\n     * @since 1.1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.getEntry#521",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.getEntry(int, int)",
+        "snippet": "    public double getEntry(int row, int column)\n        throws MatrixIndexException {\n        if (!isValidCoordinate(row,column)) {\n            throw new MatrixIndexException(\"matrix entry does not exist\");\n        }\n        return data[row][column];\n    }\n",
+        "begin_line": 521,
+        "end_line": 527,
+        "comment": "\n     * Returns the entry in the specified row and column.\n     * <p>\n     * Row and column indices start at 0 and must satisfy \n     * <ul>\n     * <li><code>0 <= row < rowDimension</code></li>\n     * <li><code> 0 <= column < columnDimension</code></li>\n     * </ul>\n     * otherwise a <code>MatrixIndexException</code> is thrown.</p>\n     * \n     * @param row  row location of entry to be fetched\n     * @param column  column location of entry to be fetched\n     * @return matrix entry in row,column\n     * @throws MatrixIndexException if the row or column index is not valid\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.isValidCoordinate#1030",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.isValidCoordinate(int, int)",
+        "snippet": "    private boolean isValidCoordinate(int row, int col) {\n        int nRows = this.getRowDimension();\n        int nCols = this.getColumnDimension();\n\n        return !(row < 0 || row > nRows - 1 || col < 0 || col > nCols -1);\n    }\n",
+        "begin_line": 1030,
+        "end_line": 1035,
+        "comment": "\n     * Tests a given coordinate as being valid or invalid\n     *\n     * @param row the row index.\n     * @param col the column index.\n     * @return true if the coordinate is with the current dimensions\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.25
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.RealMatrixImpl#88",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.RealMatrixImpl(int, int)",
+        "snippet": "    public RealMatrixImpl(int rowDimension, int columnDimension) {\n        if (rowDimension <= 0 || columnDimension <= 0) {\n            throw new IllegalArgumentException(\n                    \"row and column dimensions must be postive\");\n        }\n        data = new double[rowDimension][columnDimension];\n        lu = null;\n    }\n",
+        "begin_line": 88,
+        "end_line": 95,
+        "comment": "\n     * Create a new RealMatrix with the supplied row and column dimensions.\n     *\n     * @param rowDimension  the number of rows in the new matrix\n     * @param columnDimension  the number of columns in the new matrix\n     * @throws IllegalArgumentException if row or column dimension is not\n     *  positive\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.RealMatrixImpl#108",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.RealMatrixImpl(double[][])",
+        "snippet": "    public RealMatrixImpl(double[][] d) {\n        this.copyIn(d);\n        lu = null;\n    }\n",
+        "begin_line": 108,
+        "end_line": 111,
+        "comment": "\n     * Create a new RealMatrix using the input array as the underlying\n     * data array.\n     * <p>\n     * The input array is copied, not referenced.</p>\n     *\n     * @param d data for new matrix\n     * @throws IllegalArgumentException if <code>d</code> is not rectangular\n     *  (not all rows have the same length) or empty\n     * @throws NullPointerException if <code>d</code> is null\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.getData#266",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.getData()",
+        "snippet": "    public double[][] getData() {\n        return copyOut();\n    }\n",
+        "begin_line": 266,
+        "end_line": 268,
+        "comment": "\n     * Returns matrix entries as a two-dimensional array.\n     * <p>\n     * Makes a fresh copy of the underlying data.</p>\n     *\n     * @return    2-dimensional array of entries\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.getDataRef#277",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.getDataRef()",
+        "snippet": "    public double[][] getDataRef() {\n        return data;\n    }\n",
+        "begin_line": 277,
+        "end_line": 279,
+        "comment": "\n     * Returns a reference to the underlying data array.\n     * <p>\n     * Does not make a fresh copy of the underlying data.</p>\n     *\n     * @return 2-dimensional array of entries\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.isSquare#580",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.isSquare()",
+        "snippet": "    public boolean isSquare() {\n        return (this.getColumnDimension() == this.getRowDimension());\n    }\n",
+        "begin_line": 580,
+        "end_line": 582,
+        "comment": "\n     * @return true if the matrix is square (rowDimension = columnDimension)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.getRowDimension#603",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.getRowDimension()",
+        "snippet": "    public int getRowDimension() {\n        return data.length;\n    }\n",
+        "begin_line": 603,
+        "end_line": 605,
+        "comment": "\n     * @return rowDimension\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.getColumnDimension#610",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.getColumnDimension()",
+        "snippet": "    public int getColumnDimension() {\n        return data[0].length;\n    }\n",
+        "begin_line": 610,
+        "end_line": 612,
+        "comment": "\n     * @return columnDimension\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.copyOut#999",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.copyOut()",
+        "snippet": "    private double[][] copyOut() {\n        int nRows = this.getRowDimension();\n        double[][] out = new double[nRows][this.getColumnDimension()];\n        // can't copy 2-d array in one shot, otherwise get row references\n        for (int i = 0; i < nRows; i++) {\n            System.arraycopy(data[i], 0, out[i], 0, data[i].length);\n        }\n        return out;\n    }\n",
+        "begin_line": 999,
+        "end_line": 1007,
+        "comment": "\n     * Returns a fresh copy of the underlying data array.\n     *\n     * @return a copy of the underlying data array.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealMatrixImpl.copyIn#1019",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/linear/RealMatrixImpl.java",
+        "class_name": "org.apache.commons.math.linear.RealMatrixImpl",
+        "signature": "org.apache.commons.math.linear.RealMatrixImpl.copyIn(double[][])",
+        "snippet": "    private void copyIn(double[][] in) {\n        setSubMatrix(in,0,0);\n    }\n",
+        "begin_line": 1019,
+        "end_line": 1021,
+        "comment": "\n     * Replaces data with a fresh copy of the input array.\n     * <p>\n     * Verifies that the input array is rectangular and non-empty.</p>\n     *\n     * @param in data to copy in\n     * @throws IllegalArgumentException if input array is empty or not\n     *    rectangular\n     * @throws NullPointerException if input array is null\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.updateJacobian#72",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.updateJacobian()",
+        "snippet": "    protected void updateJacobian() {\n        incrementJacobianEvaluationsCounter();\n        Arrays.fill(jacobian, 0);\n        for (int i = 0, index = 0; i < rows; i++) {\n            WeightedMeasurement wm = measurements[i];\n            double factor = -Math.sqrt(wm.getWeight());\n            for (int j = 0; j < cols; ++j) {\n                jacobian[index++] = factor * wm.getPartial(parameters[j]);\n            }\n        }\n    }\n",
+        "begin_line": 72,
+        "end_line": 82,
+        "comment": " \n     * Update the jacobian matrix.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1715
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.getRMS#126",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.getRMS(org.apache.commons.math.estimation.EstimationProblem)",
+        "snippet": "    public double getRMS(EstimationProblem problem) {\n        WeightedMeasurement[] wm = problem.getMeasurements();\n        double criterion = 0;\n        for (int i = 0; i < wm.length; ++i) {\n            double residual = wm[i].getResidual();\n            criterion += wm[i].getWeight() * residual * residual;\n        }\n        return Math.sqrt(criterion / wm.length);\n    }\n",
+        "begin_line": 126,
+        "end_line": 134,
+        "comment": " \n     * Get the Root Mean Square value.\n     * Get the Root Mean Square value, i.e. the root of the arithmetic\n     * mean of the square of all weighted residuals. This is related to the\n     * criterion that is minimized by the estimator as follows: if\n     * <em>c</em> if the criterion, and <em>n</em> is the number of\n     * measurements, then the RMS is <em>sqrt (c/n)</em>.\n     * \n     * @param problem estimation problem\n     * @return RMS value\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1562
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EstimatedParameter.setEstimate#78",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/EstimatedParameter.java",
+        "class_name": "org.apache.commons.math.estimation.EstimatedParameter",
+        "signature": "org.apache.commons.math.estimation.EstimatedParameter.setEstimate(double)",
+        "snippet": "  public void setEstimate(double estimate) {\n    this.estimate = estimate;\n  }\n",
+        "begin_line": 78,
+        "end_line": 80,
+        "comment": " Set a new estimated value for the parameter.\n   * @param estimate new estimate for the parameter\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1508
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.updateResidualsAndCost#96",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.updateResidualsAndCost()",
+        "snippet": "    protected void updateResidualsAndCost()\n    throws EstimationException {\n\n        if (++costEvaluations > maxCostEval) {\n            throw new EstimationException(\"maximal number of evaluations exceeded ({0})\",\n                                          new Object[] { new Integer(maxCostEval) });\n        }\n\n        cost = 0;\n        for (int i = 0, index = 0; i < rows; i++, index += cols) {\n            WeightedMeasurement wm = measurements[i];\n            double residual = wm.getResidual();\n            residuals[i] = Math.sqrt(wm.getWeight()) * residual;\n            cost += wm.getWeight() * residual * residual;\n        }\n        cost = Math.sqrt(cost);\n\n    }\n",
+        "begin_line": 96,
+        "end_line": 113,
+        "comment": " \n     * Update the residuals array and cost function value.\n     * @exception EstimationException if the number of cost evaluations\n     * exceeds the maximum allowed\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1491
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "WeightedMeasurement.getWeight#91",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/WeightedMeasurement.java",
+        "class_name": "org.apache.commons.math.estimation.WeightedMeasurement",
+        "signature": "org.apache.commons.math.estimation.WeightedMeasurement.getWeight()",
+        "snippet": "  public double getWeight() {\n    return weight;\n  }\n",
+        "begin_line": 91,
+        "end_line": 93,
+        "comment": " \n   * Get the weight of the measurement in the least squares problem\n   * \n   * @return weight\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "WeightedMeasurement.getResidual#110",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/WeightedMeasurement.java",
+        "class_name": "org.apache.commons.math.estimation.WeightedMeasurement",
+        "signature": "org.apache.commons.math.estimation.WeightedMeasurement.getResidual()",
+        "snippet": "  public double getResidual() {\n    return measuredValue - getTheoreticalValue();\n  }\n",
+        "begin_line": 110,
+        "end_line": 112,
+        "comment": " \n   * Get the residual for this measurement\n   * The residual is the measured value minus the theoretical value.\n   * \n   * @return residual\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "EstimatedParameter.getEstimate#85",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/EstimatedParameter.java",
+        "class_name": "org.apache.commons.math.estimation.EstimatedParameter",
+        "signature": "org.apache.commons.math.estimation.EstimatedParameter.getEstimate()",
+        "snippet": "  public double getEstimate() {\n    return estimate;\n  }\n",
+        "begin_line": 85,
+        "end_line": 87,
+        "comment": " Get the current estimate of the parameter\n   * @return current estimate\n   ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.AbstractEstimator#38",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.AbstractEstimator()",
+        "snippet": "    protected AbstractEstimator() {\n    }\n",
+        "begin_line": 38,
+        "end_line": 39,
+        "comment": "\n     * Build an abstract estimator for least squares problems.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.setMaxCostEval#47",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.setMaxCostEval(int)",
+        "snippet": "    public final void setMaxCostEval(int maxCostEval) {\n        this.maxCostEval = maxCostEval;\n    }\n",
+        "begin_line": 47,
+        "end_line": 49,
+        "comment": "\n     * Set the maximal number of cost evaluations allowed.\n     * \n     * @param maxCostEval maximal number of cost evaluations allowed\n     * @see #estimate\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.incrementJacobianEvaluationsCounter#87",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.incrementJacobianEvaluationsCounter()",
+        "snippet": "    protected final void incrementJacobianEvaluationsCounter() {\n      ++jacobianEvaluations;\n    }\n",
+        "begin_line": 87,
+        "end_line": 89,
+        "comment": "\n     * Increment the jacobian evaluations counter.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractEstimator.initializeEstimate#223",
+        "is_bug": false,
+        "src_path": "src/java/org/apache/commons/math/estimation/AbstractEstimator.java",
+        "class_name": "org.apache.commons.math.estimation.AbstractEstimator",
+        "signature": "org.apache.commons.math.estimation.AbstractEstimator.initializeEstimate(org.apache.commons.math.estimation.EstimationProblem)",
+        "snippet": "    protected void initializeEstimate(EstimationProblem problem) {\n\n        // reset counters\n        costEvaluations     = 0;\n        jacobianEvaluations = 0;\n\n        // retrieve the equations and the parameters\n        measurements = problem.getMeasurements();\n        parameters   = problem.getUnboundParameters();\n\n        // arrays shared with the other private methods\n        rows      = measurements.length;\n        cols      = parameters.length;\n        jacobian  = new double[rows * cols];\n        residuals = new double[rows];\n\n        cost = Double.POSITIVE_INFINITY;\n\n    }\n",
+        "begin_line": 223,
+        "end_line": 241,
+        "comment": "\n     * Initialization of the common parts of the estimation.\n     * <p>This method <em>must</em> be called at the start\n     * of the {@link #estimate(EstimationProblem) estimate}\n     * method.</p>\n     * @param problem estimation problem to solve\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1443
+        },
+        "num_failing_tests": 1
+    }
+]

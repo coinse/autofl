@@ -1,0 +1,114 @@
+coverage run -m pytest pandas/tests/indexes/datetimes/test_tools.py::test_nullable_integer_to_datetime
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/indexes/datetimes/test_tools.py F                           [100%]
+
+=================================== FAILURES ===================================
+______________________ test_nullable_integer_to_datetime _______________________
+
+    def test_nullable_integer_to_datetime():
+        # Test for #30050
+        ser = pd.Series([1, 2, None, 2 ** 61, None])
+        ser = ser.astype("Int64")
+        ser_copy = ser.copy()
+    
+>       res = pd.to_datetime(ser, unit="ns")
+
+pandas/tests/indexes/datetimes/test_tools.py:2302: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/tools/datetimes.py:711: in to_datetime
+    values = convert_listlike(arg._values, format)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arg = <IntegerArray>
+[1, 2, NA, 2305843009213693952, NA]
+Length: 5, dtype: Int64
+format = None, name = None, tz = None, unit = 'ns', errors = 'raise'
+infer_datetime_format = False, dayfirst = False, yearfirst = False, exact = True
+
+    def _convert_listlike_datetimes(
+        arg,
+        format,
+        name=None,
+        tz=None,
+        unit=None,
+        errors=None,
+        infer_datetime_format=None,
+        dayfirst=None,
+        yearfirst=None,
+        exact=None,
+    ):
+        """
+        Helper function for to_datetime. Performs the conversions of 1D listlike
+        of dates
+    
+        Parameters
+        ----------
+        arg : list, tuple, ndarray, Series, Index
+            date to be parced
+        name : object
+            None or string for the Index name
+        tz : object
+            None or 'utc'
+        unit : string
+            None or string of the frequency of the passed data
+        errors : string
+            error handing behaviors from to_datetime, 'raise', 'coerce', 'ignore'
+        infer_datetime_format : boolean
+            inferring format behavior from to_datetime
+        dayfirst : boolean
+            dayfirst parsing behavior from to_datetime
+        yearfirst : boolean
+            yearfirst parsing behavior from to_datetime
+        exact : boolean
+            exact format matching behavior from to_datetime
+    
+        Returns
+        -------
+        Index-like of parsed dates
+        """
+        from pandas import DatetimeIndex
+        from pandas.core.arrays import DatetimeArray
+        from pandas.core.arrays.datetimes import (
+            maybe_convert_dtype,
+            objects_to_datetime64ns,
+        )
+    
+        if isinstance(arg, (list, tuple)):
+            arg = np.array(arg, dtype="O")
+    
+        # these are shortcutable
+        if is_datetime64tz_dtype(arg):
+            if not isinstance(arg, (DatetimeArray, DatetimeIndex)):
+                return DatetimeIndex(arg, tz=tz, name=name)
+            if tz == "utc":
+                arg = arg.tz_convert(None).tz_localize(tz)
+            return arg
+    
+        elif is_datetime64_ns_dtype(arg):
+            if not isinstance(arg, (DatetimeArray, DatetimeIndex)):
+                try:
+                    return DatetimeIndex(arg, tz=tz, name=name)
+                except ValueError:
+                    pass
+            elif tz:
+                # DatetimeArray, DatetimeIndex
+                return arg.tz_localize(tz)
+    
+            return arg
+    
+        elif unit is not None:
+            if format is not None:
+                raise ValueError("cannot specify both format and unit")
+            arg = getattr(arg, "values", arg)
+>           result, tz_parsed = tslib.array_with_unit_to_datetime(arg, unit, errors=errors)
+E           TypeError: Argument 'values' has incorrect type (expected numpy.ndarray, got IntegerArray)
+
+pandas/core/tools/datetimes.py:320: TypeError
+=========================== short test summary info ============================
+FAILED pandas/tests/indexes/datetimes/test_tools.py::test_nullable_integer_to_datetime
+============================== 1 failed in 0.43s ===============================

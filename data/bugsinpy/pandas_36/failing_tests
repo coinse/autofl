@@ -1,0 +1,65 @@
+coverage run -m pytest pandas/tests/dtypes//test_missing.py::TestIsNA::test_isna_old_datetimelike
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.2, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.15.1
+collected 1 item
+
+pandas/tests/dtypes/test_missing.py F                                    [100%]
+
+=================================== FAILURES ===================================
+_____________________ TestIsNA.test_isna_old_datetimelike ______________________
+
+self = <pandas.tests.dtypes.test_missing.TestIsNA object at 0x7f5e2275ab80>
+
+    def test_isna_old_datetimelike(self):
+        # isna_old should work for dt64tz, td64, and period, not just tznaive
+        dti = pd.date_range("2016-01-01", periods=3)
+        dta = dti._data
+        dta[-1] = pd.NaT
+        expected = np.array([False, False, True], dtype=bool)
+    
+        objs = [dta, dta.tz_localize("US/Eastern"), dta - dta, dta.to_period("D")]
+    
+        for obj in objs:
+            with cf.option_context("mode.use_inf_as_na", True):
+>               result = pd.isna(obj)
+
+pandas/tests/dtypes/test_missing.py:199: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/dtypes/missing.py:127: in isna
+    return _isna(obj)
+pandas/core/dtypes/missing.py:184: in _isna_old
+    return _isna_ndarraylike_old(obj)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+obj = <DatetimeArray>
+['2016-01-01 00:00:00-05:00', '2016-01-02 00:00:00-05:00', 'NaT']
+Length: 3, dtype: datetime64[ns, US/Eastern]
+
+    def _isna_ndarraylike_old(obj):
+        values = getattr(obj, "_values", obj)
+        dtype = values.dtype
+    
+        if is_string_dtype(dtype):
+            # Working around NumPy ticket 1542
+            shape = values.shape
+    
+            if is_string_like_dtype(dtype):
+                result = np.zeros(values.shape, dtype=bool)
+            else:
+                result = np.empty(shape, dtype=bool)
+                vec = libmissing.isnaobj_old(values.ravel())
+                result[:] = vec.reshape(shape)
+    
+        elif is_datetime64_dtype(dtype):
+            # this is the NaT pattern
+            result = values.view("i8") == iNaT
+        else:
+>           result = ~np.isfinite(values)
+E           TypeError: ufunc 'isfinite' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''
+
+pandas/core/dtypes/missing.py:291: TypeError
+=========================== short test summary info ============================
+FAILED pandas/tests/dtypes/test_missing.py::TestIsNA::test_isna_old_datetimelike
+============================== 1 failed in 0.20s ===============================

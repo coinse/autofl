@@ -1,0 +1,127 @@
+coverage run -m pytest pandas/tests/series/test_analytics.py::TestSeriesAnalytics::test_bool_diff
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/series/test_analytics.py F                                  [100%]
+
+=================================== FAILURES ===================================
+_____________ TestSeriesAnalytics.test_bool_diff[input0-output0-1] _____________
+
+self = <pandas.tests.series.test_analytics.TestSeriesAnalytics object at 0x7f4011785940>
+input = [False, True, True, False, False]
+output = [nan, True, False, True, False], diff = 1
+
+    @pytest.mark.parametrize(
+        "input,output,diff",
+        [([False, True, True, False, False], [nan, True, False, True, False], 1)],
+    )
+    def test_bool_diff(self, input, output, diff):
+        # boolean series (test for fixing #17294)
+        s = Series(input)
+>       result = s.diff()
+
+pandas/tests/series/test_analytics.py:291: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/series.py:2478: in diff
+    result = algorithms.diff(com.values_from_object(self), periods)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arr = array([False,  True,  True, False, False]), n = 1, axis = 0
+
+    def diff(arr, n: int, axis: int = 0):
+        """
+        difference of n between self,
+        analogous to s-s.shift(n)
+    
+        Parameters
+        ----------
+        arr : ndarray
+        n : int
+            number of periods
+        axis : int
+            axis to shift on
+    
+        Returns
+        -------
+        shifted
+        """
+    
+        n = int(n)
+        na = np.nan
+        dtype = arr.dtype
+    
+        is_timedelta = False
+        if needs_i8_conversion(arr):
+            dtype = np.float64
+            arr = arr.view("i8")
+            na = iNaT
+            is_timedelta = True
+    
+        elif is_bool_dtype(dtype):
+            dtype = np.object_
+    
+        elif is_integer_dtype(dtype):
+            dtype = np.float64
+    
+        dtype = np.dtype(dtype)
+        out_arr = np.empty(arr.shape, dtype=dtype)
+    
+        na_indexer = [slice(None)] * arr.ndim
+        na_indexer[axis] = slice(None, n) if n >= 0 else slice(n, None)
+        out_arr[tuple(na_indexer)] = na
+    
+        if arr.ndim == 2 and arr.dtype.name in _diff_special:
+            f = _diff_special[arr.dtype.name]
+            f(arr, out_arr, n, axis)
+        else:
+            # To keep mypy happy, _res_indexer is a list while res_indexer is
+            #  a tuple, ditto for lag_indexer.
+            _res_indexer = [slice(None)] * arr.ndim
+            _res_indexer[axis] = slice(n, None) if n >= 0 else slice(None, n)
+            res_indexer = tuple(_res_indexer)
+    
+            _lag_indexer = [slice(None)] * arr.ndim
+            _lag_indexer[axis] = slice(None, -n) if n > 0 else slice(-n, None)
+            lag_indexer = tuple(_lag_indexer)
+    
+            # need to make sure that we account for na for datelike/timedelta
+            # we don't actually want to subtract these i8 numbers
+            if is_timedelta:
+                res = arr[res_indexer]
+                lag = arr[lag_indexer]
+    
+                mask = (arr[res_indexer] == na) | (arr[lag_indexer] == na)
+                if mask.any():
+                    res = res.copy()
+                    res[mask] = 0
+                    lag = lag.copy()
+                    lag[mask] = 0
+    
+                result = res - lag
+                result[mask] = na
+                out_arr[res_indexer] = result
+            else:
+>               out_arr[res_indexer] = arr[res_indexer] - arr[lag_indexer]
+E               TypeError: numpy boolean subtract, the `-` operator, is not supported, use the bitwise_xor, the `^` operator, or the logical_xor function instead.
+
+pandas/core/algorithms.py:1963: TypeError
+=============================== warnings summary ===============================
+pandas/util/_test_decorators.py:188
+pandas/util/_test_decorators.py:188
+pandas/util/_test_decorators.py:188
+  /home/user/BugsInPy/temp/projects/pandas/pandas/util/_test_decorators.py:188: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    _np_version < LooseVersion(ver_str), reason=reason, *args, **kwds
+
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+/opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345
+  /opt/conda/envs/cf249b496aae59f2a35047c28676df47/lib/python3.8/site-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+-- Docs: https://docs.pytest.org/en/latest/warnings.html
+=========================== short test summary info ============================
+FAILED pandas/tests/series/test_analytics.py::TestSeriesAnalytics::test_bool_diff[input0-output0-1]
+======================== 1 failed, 6 warnings in 0.46s =========================

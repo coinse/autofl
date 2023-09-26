@@ -1,0 +1,140 @@
+coverage run -m pytest pandas/tests/indexes/datetimes/test_date_range.py::test_date_range_with_custom_holidays
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/indexes/datetimes/test_date_range.py F                      [100%]
+
+=================================== FAILURES ===================================
+_____________________ test_date_range_with_custom_holidays _____________________
+
+cls = <class 'pandas.core.arrays.datetimes.DatetimeArray'>
+index = <DatetimeArray>
+['2020-11-25 15:00:00', '2020-11-25 16:00:00', '2020-11-27 15:00:00',
+ '2020-11-27 16:00:00']
+Length: 4, dtype: datetime64[ns]
+freq = <CustomBusinessHour: CBH=15:00-17:00>, kwargs = {'ambiguous': 'raise'}
+inferred = None
+on_freq = <DatetimeArray>
+['2020-11-25 15:00:00', '2020-11-25 16:00:00', '2020-11-27 15:00:00',
+ '2020-11-27 16:00:00', '2020-11...2-11 15:00:00', '2020-12-11 16:00:00',
+ '2020-12-14 15:00:00', '2020-12-14 16:00:00']
+Length: 26, dtype: datetime64[ns]
+
+    @classmethod
+    def _validate_frequency(cls, index, freq, **kwargs):
+        """
+        Validate that a frequency is compatible with the values of a given
+        Datetime Array/Index or Timedelta Array/Index
+    
+        Parameters
+        ----------
+        index : DatetimeIndex or TimedeltaIndex
+            The index on which to determine if the given frequency is valid
+        freq : DateOffset
+            The frequency to validate
+        """
+        if is_period_dtype(cls):
+            # Frequency validation is not meaningful for Period Array/Index
+            return None
+    
+        inferred = index.inferred_freq
+        if index.size == 0 or inferred == freq.freqstr:
+            return None
+    
+        try:
+            on_freq = cls._generate_range(
+                start=index[0], end=None, periods=len(index), freq=freq, **kwargs
+            )
+            if not np.array_equal(index.asi8, on_freq.asi8):
+>               raise ValueError
+E               ValueError
+
+pandas/core/arrays/datetimelike.py:891: ValueError
+
+During handling of the above exception, another exception occurred:
+
+    def test_date_range_with_custom_holidays():
+        # GH 30593
+        freq = pd.offsets.CustomBusinessHour(start="15:00", holidays=["2020-11-26"])
+        result = pd.date_range(start="2020-11-25 15:00", periods=4, freq=freq)
+>       expected = pd.DatetimeIndex(
+            [
+                "2020-11-25 15:00:00",
+                "2020-11-25 16:00:00",
+                "2020-11-27 15:00:00",
+                "2020-11-27 16:00:00",
+            ],
+            freq=freq,
+        )
+
+pandas/tests/indexes/datetimes/test_date_range.py:954: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/indexes/datetimes.py:246: in __new__
+    dtarr = DatetimeArray._from_sequence(
+pandas/core/arrays/datetimes.py:419: in _from_sequence
+    cls._validate_frequency(result, freq, ambiguous=ambiguous)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'pandas.core.arrays.datetimes.DatetimeArray'>
+index = <DatetimeArray>
+['2020-11-25 15:00:00', '2020-11-25 16:00:00', '2020-11-27 15:00:00',
+ '2020-11-27 16:00:00']
+Length: 4, dtype: datetime64[ns]
+freq = <CustomBusinessHour: CBH=15:00-17:00>, kwargs = {'ambiguous': 'raise'}
+inferred = None
+on_freq = <DatetimeArray>
+['2020-11-25 15:00:00', '2020-11-25 16:00:00', '2020-11-27 15:00:00',
+ '2020-11-27 16:00:00', '2020-11...2-11 15:00:00', '2020-12-11 16:00:00',
+ '2020-12-14 15:00:00', '2020-12-14 16:00:00']
+Length: 26, dtype: datetime64[ns]
+
+    @classmethod
+    def _validate_frequency(cls, index, freq, **kwargs):
+        """
+        Validate that a frequency is compatible with the values of a given
+        Datetime Array/Index or Timedelta Array/Index
+    
+        Parameters
+        ----------
+        index : DatetimeIndex or TimedeltaIndex
+            The index on which to determine if the given frequency is valid
+        freq : DateOffset
+            The frequency to validate
+        """
+        if is_period_dtype(cls):
+            # Frequency validation is not meaningful for Period Array/Index
+            return None
+    
+        inferred = index.inferred_freq
+        if index.size == 0 or inferred == freq.freqstr:
+            return None
+    
+        try:
+            on_freq = cls._generate_range(
+                start=index[0], end=None, periods=len(index), freq=freq, **kwargs
+            )
+            if not np.array_equal(index.asi8, on_freq.asi8):
+                raise ValueError
+        except ValueError as e:
+            if "non-fixed" in str(e):
+                # non-fixed frequencies are not meaningful for timedelta64;
+                #  we retain that error message
+                raise e
+            # GH#11587 the main way this is reached is if the `np.array_equal`
+            #  check above is False.  This can also be reached if index[0]
+            #  is `NaT`, in which case the call to `cls._generate_range` will
+            #  raise a ValueError, which we re-raise with a more targeted
+            #  message.
+>           raise ValueError(
+                f"Inferred frequency {inferred} from passed values "
+                f"does not conform to passed frequency {freq.freqstr}"
+            )
+E           ValueError: Inferred frequency None from passed values does not conform to passed frequency CBH
+
+pandas/core/arrays/datetimelike.py:902: ValueError
+=========================== short test summary info ============================
+FAILED pandas/tests/indexes/datetimes/test_date_range.py::test_date_range_with_custom_holidays
+============================== 1 failed in 0.46s ===============================

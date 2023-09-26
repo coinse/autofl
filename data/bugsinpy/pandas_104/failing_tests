@@ -1,0 +1,612 @@
+coverage run -m pytest pandas/tests/groupby/test_function.py::test_groupby_quantile_with_arraylike_q_and_int_columns
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 4 items
+
+pandas/tests/groupby/test_function.py FFFF                               [100%]
+
+=================================== FAILURES ===================================
+_ test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby0-frame_size0] _
+
+frame_size = (2, 3), groupby = [0], q = [0.5, 0.6]
+
+    @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
+    @pytest.mark.parametrize("groupby", [[0], [0, 1]])
+    @pytest.mark.parametrize("q", [[0.5, 0.6]])
+    def test_groupby_quantile_with_arraylike_q_and_int_columns(frame_size, groupby, q):
+        # GH30289
+        nrow, ncol = frame_size
+        df = pd.DataFrame(
+            np.array([ncol * [_ % 4] for _ in range(nrow)]), columns=range(ncol)
+        )
+    
+        idx_levels = [list(range(min(nrow, 4)))] * len(groupby) + [q]
+        idx_codes = [[x for x in range(min(nrow, 4)) for _ in q]] * len(groupby) + [
+            list(range(len(q))) * min(nrow, 4)
+        ]
+        expected_index = pd.MultiIndex(
+            levels=idx_levels, codes=idx_codes, names=groupby + [None]
+        )
+        expected_values = [
+            [float(x)] * (ncol - len(groupby)) for x in range(min(nrow, 4)) for _ in q
+        ]
+        expected_columns = [x for x in range(ncol) if x not in groupby]
+        expected = pd.DataFrame(
+            expected_values, index=expected_index, columns=expected_columns
+        )
+>       result = df.groupby(groupby).quantile(q)
+
+pandas/tests/groupby/test_function.py:1425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <pandas.core.groupby.generic.DataFrameGroupBy object at 0x7f0628b9b3a0>
+q = [0.5, 0.6], interpolation = 'linear'
+
+    def quantile(self, q=0.5, interpolation: str = "linear"):
+        """
+        Return group values at the given quantile, a la numpy.percentile.
+    
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+            Value(s) between 0 and 1 providing the quantile(s) to compute.
+        interpolation : {'linear', 'lower', 'higher', 'midpoint', 'nearest'}
+            Method to use when the desired quantile falls between two points.
+    
+        Returns
+        -------
+        Series or DataFrame
+            Return type determined by caller of GroupBy object.
+    
+        See Also
+        --------
+        Series.quantile : Similar method for Series.
+        DataFrame.quantile : Similar method for DataFrame.
+        numpy.percentile : NumPy method to compute qth percentile.
+    
+        Examples
+        --------
+        >>> df = pd.DataFrame([
+        ...     ['a', 1], ['a', 2], ['a', 3],
+        ...     ['b', 1], ['b', 3], ['b', 5]
+        ... ], columns=['key', 'val'])
+        >>> df.groupby('key').quantile()
+            val
+        key
+        a    2.0
+        b    3.0
+        """
+        from pandas import concat
+    
+        def pre_processor(vals: np.ndarray) -> Tuple[np.ndarray, Optional[Type]]:
+            if is_object_dtype(vals):
+                raise TypeError(
+                    "'quantile' cannot be performed against 'object' dtypes!"
+                )
+    
+            inference = None
+            if is_integer_dtype(vals):
+                inference = np.int64
+            elif is_datetime64_dtype(vals):
+                inference = "datetime64[ns]"
+                vals = vals.astype(np.float)
+    
+            return vals, inference
+    
+        def post_processor(vals: np.ndarray, inference: Optional[Type]) -> np.ndarray:
+            if inference:
+                # Check for edge case
+                if not (
+                    is_integer_dtype(inference)
+                    and interpolation in {"linear", "midpoint"}
+                ):
+                    vals = vals.astype(inference)
+    
+            return vals
+    
+        if is_scalar(q):
+            return self._get_cythonized_result(
+                "group_quantile",
+                aggregate=True,
+                needs_values=True,
+                needs_mask=True,
+                cython_dtype=np.dtype(np.float64),
+                pre_processing=pre_processor,
+                post_processing=post_processor,
+                q=q,
+                interpolation=interpolation,
+            )
+        else:
+            results = [
+                self._get_cythonized_result(
+                    "group_quantile",
+                    aggregate=True,
+                    needs_values=True,
+                    needs_mask=True,
+                    cython_dtype=np.dtype(np.float64),
+                    pre_processing=pre_processor,
+                    post_processing=post_processor,
+                    q=qi,
+                    interpolation=interpolation,
+                )
+                for qi in q
+            ]
+            result = concat(results, axis=0, keys=q)
+            # fix levels to place quantiles on the inside
+            # TODO(GH-10710): Ideally, we could write this as
+            #  >>> result.stack(0).loc[pd.IndexSlice[:, ..., q], :]
+            #  but this hits https://github.com/pandas-dev/pandas/issues/10710
+            #  which doesn't reorder the list-like `q` on the inner level.
+            order = np.roll(list(range(result.index.nlevels)), -1)
+            result = result.reorder_levels(order)
+            result = result.reindex(q, level=-1)
+    
+            # fix order.
+            hi = len(q) * self.ngroups
+            arr = np.arange(0, hi, self.ngroups)
+            arrays = []
+    
+            for i in range(self.ngroups):
+                arr2 = arr + i
+                arrays.append(arr2)
+    
+            indices = np.concatenate(arrays)
+>           assert len(indices) == len(result)
+E           AssertionError
+
+pandas/core/groupby/groupby.py:1954: AssertionError
+_ test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby0-frame_size1] _
+
+frame_size = (100, 10), groupby = [0], q = [0.5, 0.6]
+
+    @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
+    @pytest.mark.parametrize("groupby", [[0], [0, 1]])
+    @pytest.mark.parametrize("q", [[0.5, 0.6]])
+    def test_groupby_quantile_with_arraylike_q_and_int_columns(frame_size, groupby, q):
+        # GH30289
+        nrow, ncol = frame_size
+        df = pd.DataFrame(
+            np.array([ncol * [_ % 4] for _ in range(nrow)]), columns=range(ncol)
+        )
+    
+        idx_levels = [list(range(min(nrow, 4)))] * len(groupby) + [q]
+        idx_codes = [[x for x in range(min(nrow, 4)) for _ in q]] * len(groupby) + [
+            list(range(len(q))) * min(nrow, 4)
+        ]
+        expected_index = pd.MultiIndex(
+            levels=idx_levels, codes=idx_codes, names=groupby + [None]
+        )
+        expected_values = [
+            [float(x)] * (ncol - len(groupby)) for x in range(min(nrow, 4)) for _ in q
+        ]
+        expected_columns = [x for x in range(ncol) if x not in groupby]
+        expected = pd.DataFrame(
+            expected_values, index=expected_index, columns=expected_columns
+        )
+>       result = df.groupby(groupby).quantile(q)
+
+pandas/tests/groupby/test_function.py:1425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <pandas.core.groupby.generic.DataFrameGroupBy object at 0x7f0628af3bb0>
+q = [0.5, 0.6], interpolation = 'linear'
+
+    def quantile(self, q=0.5, interpolation: str = "linear"):
+        """
+        Return group values at the given quantile, a la numpy.percentile.
+    
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+            Value(s) between 0 and 1 providing the quantile(s) to compute.
+        interpolation : {'linear', 'lower', 'higher', 'midpoint', 'nearest'}
+            Method to use when the desired quantile falls between two points.
+    
+        Returns
+        -------
+        Series or DataFrame
+            Return type determined by caller of GroupBy object.
+    
+        See Also
+        --------
+        Series.quantile : Similar method for Series.
+        DataFrame.quantile : Similar method for DataFrame.
+        numpy.percentile : NumPy method to compute qth percentile.
+    
+        Examples
+        --------
+        >>> df = pd.DataFrame([
+        ...     ['a', 1], ['a', 2], ['a', 3],
+        ...     ['b', 1], ['b', 3], ['b', 5]
+        ... ], columns=['key', 'val'])
+        >>> df.groupby('key').quantile()
+            val
+        key
+        a    2.0
+        b    3.0
+        """
+        from pandas import concat
+    
+        def pre_processor(vals: np.ndarray) -> Tuple[np.ndarray, Optional[Type]]:
+            if is_object_dtype(vals):
+                raise TypeError(
+                    "'quantile' cannot be performed against 'object' dtypes!"
+                )
+    
+            inference = None
+            if is_integer_dtype(vals):
+                inference = np.int64
+            elif is_datetime64_dtype(vals):
+                inference = "datetime64[ns]"
+                vals = vals.astype(np.float)
+    
+            return vals, inference
+    
+        def post_processor(vals: np.ndarray, inference: Optional[Type]) -> np.ndarray:
+            if inference:
+                # Check for edge case
+                if not (
+                    is_integer_dtype(inference)
+                    and interpolation in {"linear", "midpoint"}
+                ):
+                    vals = vals.astype(inference)
+    
+            return vals
+    
+        if is_scalar(q):
+            return self._get_cythonized_result(
+                "group_quantile",
+                aggregate=True,
+                needs_values=True,
+                needs_mask=True,
+                cython_dtype=np.dtype(np.float64),
+                pre_processing=pre_processor,
+                post_processing=post_processor,
+                q=q,
+                interpolation=interpolation,
+            )
+        else:
+            results = [
+                self._get_cythonized_result(
+                    "group_quantile",
+                    aggregate=True,
+                    needs_values=True,
+                    needs_mask=True,
+                    cython_dtype=np.dtype(np.float64),
+                    pre_processing=pre_processor,
+                    post_processing=post_processor,
+                    q=qi,
+                    interpolation=interpolation,
+                )
+                for qi in q
+            ]
+            result = concat(results, axis=0, keys=q)
+            # fix levels to place quantiles on the inside
+            # TODO(GH-10710): Ideally, we could write this as
+            #  >>> result.stack(0).loc[pd.IndexSlice[:, ..., q], :]
+            #  but this hits https://github.com/pandas-dev/pandas/issues/10710
+            #  which doesn't reorder the list-like `q` on the inner level.
+            order = np.roll(list(range(result.index.nlevels)), -1)
+            result = result.reorder_levels(order)
+            result = result.reindex(q, level=-1)
+    
+            # fix order.
+            hi = len(q) * self.ngroups
+            arr = np.arange(0, hi, self.ngroups)
+            arrays = []
+    
+            for i in range(self.ngroups):
+                arr2 = arr + i
+                arrays.append(arr2)
+    
+            indices = np.concatenate(arrays)
+>           assert len(indices) == len(result)
+E           AssertionError
+
+pandas/core/groupby/groupby.py:1954: AssertionError
+_ test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby1-frame_size0] _
+
+frame_size = (2, 3), groupby = [0, 1], q = [0.5, 0.6]
+
+    @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
+    @pytest.mark.parametrize("groupby", [[0], [0, 1]])
+    @pytest.mark.parametrize("q", [[0.5, 0.6]])
+    def test_groupby_quantile_with_arraylike_q_and_int_columns(frame_size, groupby, q):
+        # GH30289
+        nrow, ncol = frame_size
+        df = pd.DataFrame(
+            np.array([ncol * [_ % 4] for _ in range(nrow)]), columns=range(ncol)
+        )
+    
+        idx_levels = [list(range(min(nrow, 4)))] * len(groupby) + [q]
+        idx_codes = [[x for x in range(min(nrow, 4)) for _ in q]] * len(groupby) + [
+            list(range(len(q))) * min(nrow, 4)
+        ]
+        expected_index = pd.MultiIndex(
+            levels=idx_levels, codes=idx_codes, names=groupby + [None]
+        )
+        expected_values = [
+            [float(x)] * (ncol - len(groupby)) for x in range(min(nrow, 4)) for _ in q
+        ]
+        expected_columns = [x for x in range(ncol) if x not in groupby]
+        expected = pd.DataFrame(
+            expected_values, index=expected_index, columns=expected_columns
+        )
+>       result = df.groupby(groupby).quantile(q)
+
+pandas/tests/groupby/test_function.py:1425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <pandas.core.groupby.generic.DataFrameGroupBy object at 0x7f0628ba7160>
+q = [0.5, 0.6], interpolation = 'linear'
+
+    def quantile(self, q=0.5, interpolation: str = "linear"):
+        """
+        Return group values at the given quantile, a la numpy.percentile.
+    
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+            Value(s) between 0 and 1 providing the quantile(s) to compute.
+        interpolation : {'linear', 'lower', 'higher', 'midpoint', 'nearest'}
+            Method to use when the desired quantile falls between two points.
+    
+        Returns
+        -------
+        Series or DataFrame
+            Return type determined by caller of GroupBy object.
+    
+        See Also
+        --------
+        Series.quantile : Similar method for Series.
+        DataFrame.quantile : Similar method for DataFrame.
+        numpy.percentile : NumPy method to compute qth percentile.
+    
+        Examples
+        --------
+        >>> df = pd.DataFrame([
+        ...     ['a', 1], ['a', 2], ['a', 3],
+        ...     ['b', 1], ['b', 3], ['b', 5]
+        ... ], columns=['key', 'val'])
+        >>> df.groupby('key').quantile()
+            val
+        key
+        a    2.0
+        b    3.0
+        """
+        from pandas import concat
+    
+        def pre_processor(vals: np.ndarray) -> Tuple[np.ndarray, Optional[Type]]:
+            if is_object_dtype(vals):
+                raise TypeError(
+                    "'quantile' cannot be performed against 'object' dtypes!"
+                )
+    
+            inference = None
+            if is_integer_dtype(vals):
+                inference = np.int64
+            elif is_datetime64_dtype(vals):
+                inference = "datetime64[ns]"
+                vals = vals.astype(np.float)
+    
+            return vals, inference
+    
+        def post_processor(vals: np.ndarray, inference: Optional[Type]) -> np.ndarray:
+            if inference:
+                # Check for edge case
+                if not (
+                    is_integer_dtype(inference)
+                    and interpolation in {"linear", "midpoint"}
+                ):
+                    vals = vals.astype(inference)
+    
+            return vals
+    
+        if is_scalar(q):
+            return self._get_cythonized_result(
+                "group_quantile",
+                aggregate=True,
+                needs_values=True,
+                needs_mask=True,
+                cython_dtype=np.dtype(np.float64),
+                pre_processing=pre_processor,
+                post_processing=post_processor,
+                q=q,
+                interpolation=interpolation,
+            )
+        else:
+            results = [
+                self._get_cythonized_result(
+                    "group_quantile",
+                    aggregate=True,
+                    needs_values=True,
+                    needs_mask=True,
+                    cython_dtype=np.dtype(np.float64),
+                    pre_processing=pre_processor,
+                    post_processing=post_processor,
+                    q=qi,
+                    interpolation=interpolation,
+                )
+                for qi in q
+            ]
+            result = concat(results, axis=0, keys=q)
+            # fix levels to place quantiles on the inside
+            # TODO(GH-10710): Ideally, we could write this as
+            #  >>> result.stack(0).loc[pd.IndexSlice[:, ..., q], :]
+            #  but this hits https://github.com/pandas-dev/pandas/issues/10710
+            #  which doesn't reorder the list-like `q` on the inner level.
+            order = np.roll(list(range(result.index.nlevels)), -1)
+            result = result.reorder_levels(order)
+            result = result.reindex(q, level=-1)
+    
+            # fix order.
+            hi = len(q) * self.ngroups
+            arr = np.arange(0, hi, self.ngroups)
+            arrays = []
+    
+            for i in range(self.ngroups):
+                arr2 = arr + i
+                arrays.append(arr2)
+    
+            indices = np.concatenate(arrays)
+>           assert len(indices) == len(result)
+E           AssertionError
+
+pandas/core/groupby/groupby.py:1954: AssertionError
+_ test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby1-frame_size1] _
+
+frame_size = (100, 10), groupby = [0, 1], q = [0.5, 0.6]
+
+    @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
+    @pytest.mark.parametrize("groupby", [[0], [0, 1]])
+    @pytest.mark.parametrize("q", [[0.5, 0.6]])
+    def test_groupby_quantile_with_arraylike_q_and_int_columns(frame_size, groupby, q):
+        # GH30289
+        nrow, ncol = frame_size
+        df = pd.DataFrame(
+            np.array([ncol * [_ % 4] for _ in range(nrow)]), columns=range(ncol)
+        )
+    
+        idx_levels = [list(range(min(nrow, 4)))] * len(groupby) + [q]
+        idx_codes = [[x for x in range(min(nrow, 4)) for _ in q]] * len(groupby) + [
+            list(range(len(q))) * min(nrow, 4)
+        ]
+        expected_index = pd.MultiIndex(
+            levels=idx_levels, codes=idx_codes, names=groupby + [None]
+        )
+        expected_values = [
+            [float(x)] * (ncol - len(groupby)) for x in range(min(nrow, 4)) for _ in q
+        ]
+        expected_columns = [x for x in range(ncol) if x not in groupby]
+        expected = pd.DataFrame(
+            expected_values, index=expected_index, columns=expected_columns
+        )
+>       result = df.groupby(groupby).quantile(q)
+
+pandas/tests/groupby/test_function.py:1425: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <pandas.core.groupby.generic.DataFrameGroupBy object at 0x7f0628cd9040>
+q = [0.5, 0.6], interpolation = 'linear'
+
+    def quantile(self, q=0.5, interpolation: str = "linear"):
+        """
+        Return group values at the given quantile, a la numpy.percentile.
+    
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+            Value(s) between 0 and 1 providing the quantile(s) to compute.
+        interpolation : {'linear', 'lower', 'higher', 'midpoint', 'nearest'}
+            Method to use when the desired quantile falls between two points.
+    
+        Returns
+        -------
+        Series or DataFrame
+            Return type determined by caller of GroupBy object.
+    
+        See Also
+        --------
+        Series.quantile : Similar method for Series.
+        DataFrame.quantile : Similar method for DataFrame.
+        numpy.percentile : NumPy method to compute qth percentile.
+    
+        Examples
+        --------
+        >>> df = pd.DataFrame([
+        ...     ['a', 1], ['a', 2], ['a', 3],
+        ...     ['b', 1], ['b', 3], ['b', 5]
+        ... ], columns=['key', 'val'])
+        >>> df.groupby('key').quantile()
+            val
+        key
+        a    2.0
+        b    3.0
+        """
+        from pandas import concat
+    
+        def pre_processor(vals: np.ndarray) -> Tuple[np.ndarray, Optional[Type]]:
+            if is_object_dtype(vals):
+                raise TypeError(
+                    "'quantile' cannot be performed against 'object' dtypes!"
+                )
+    
+            inference = None
+            if is_integer_dtype(vals):
+                inference = np.int64
+            elif is_datetime64_dtype(vals):
+                inference = "datetime64[ns]"
+                vals = vals.astype(np.float)
+    
+            return vals, inference
+    
+        def post_processor(vals: np.ndarray, inference: Optional[Type]) -> np.ndarray:
+            if inference:
+                # Check for edge case
+                if not (
+                    is_integer_dtype(inference)
+                    and interpolation in {"linear", "midpoint"}
+                ):
+                    vals = vals.astype(inference)
+    
+            return vals
+    
+        if is_scalar(q):
+            return self._get_cythonized_result(
+                "group_quantile",
+                aggregate=True,
+                needs_values=True,
+                needs_mask=True,
+                cython_dtype=np.dtype(np.float64),
+                pre_processing=pre_processor,
+                post_processing=post_processor,
+                q=q,
+                interpolation=interpolation,
+            )
+        else:
+            results = [
+                self._get_cythonized_result(
+                    "group_quantile",
+                    aggregate=True,
+                    needs_values=True,
+                    needs_mask=True,
+                    cython_dtype=np.dtype(np.float64),
+                    pre_processing=pre_processor,
+                    post_processing=post_processor,
+                    q=qi,
+                    interpolation=interpolation,
+                )
+                for qi in q
+            ]
+            result = concat(results, axis=0, keys=q)
+            # fix levels to place quantiles on the inside
+            # TODO(GH-10710): Ideally, we could write this as
+            #  >>> result.stack(0).loc[pd.IndexSlice[:, ..., q], :]
+            #  but this hits https://github.com/pandas-dev/pandas/issues/10710
+            #  which doesn't reorder the list-like `q` on the inner level.
+            order = np.roll(list(range(result.index.nlevels)), -1)
+            result = result.reorder_levels(order)
+            result = result.reindex(q, level=-1)
+    
+            # fix order.
+            hi = len(q) * self.ngroups
+            arr = np.arange(0, hi, self.ngroups)
+            arrays = []
+    
+            for i in range(self.ngroups):
+                arr2 = arr + i
+                arrays.append(arr2)
+    
+            indices = np.concatenate(arrays)
+>           assert len(indices) == len(result)
+E           AssertionError
+
+pandas/core/groupby/groupby.py:1954: AssertionError
+=========================== short test summary info ============================
+FAILED pandas/tests/groupby/test_function.py::test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby0-frame_size0]
+FAILED pandas/tests/groupby/test_function.py::test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby0-frame_size1]
+FAILED pandas/tests/groupby/test_function.py::test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby1-frame_size0]
+FAILED pandas/tests/groupby/test_function.py::test_groupby_quantile_with_arraylike_q_and_int_columns[q0-groupby1-frame_size1]
+============================== 4 failed in 0.84s ===============================

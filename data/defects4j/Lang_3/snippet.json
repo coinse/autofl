@@ -1,0 +1,66 @@
+[
+    {
+        "name": "NumberUtils.createNumber#450",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createNumber(java.lang.String)",
+        "snippet": "    public static Number createNumber(final String str) throws NumberFormatException {\n        if (str == null) {\n            return null;\n        }\n        if (StringUtils.isBlank(str)) {\n            throw new NumberFormatException(\"A blank string is not a valid number\");\n        }\n        // Need to deal with all possible hex prefixes here\n        final String[] hex_prefixes = {\"0x\", \"0X\", \"-0x\", \"-0X\", \"#\", \"-#\"};\n        int pfxLen = 0;\n        for(final String pfx : hex_prefixes) {\n            if (str.startsWith(pfx)) {\n                pfxLen += pfx.length();\n                break;\n            }\n        }\n        if (pfxLen > 0) { // we have a hex number\n            final int hexDigits = str.length() - pfxLen;\n            if (hexDigits > 16) { // too many for Long\n                return createBigInteger(str);\n            }\n            if (hexDigits > 8) { // too many for an int\n                return createLong(str);\n            }\n            return createInteger(str);\n        }\n        final char lastChar = str.charAt(str.length() - 1);\n        String mant;\n        String dec;\n        String exp;\n        final int decPos = str.indexOf('.');\n        final int expPos = str.indexOf('e') + str.indexOf('E') + 1; // assumes both not present\n        // if both e and E are present, this is caught by the checks on expPos (which prevent IOOBE)\n        // and the parsing which will detect if e or E appear in a number due to using the wrong offset\n\n        int numDecimals = 0; // Check required precision (LANG-693)\n        if (decPos > -1) { // there is a decimal point\n\n            if (expPos > -1) { // there is an exponent\n                if (expPos < decPos || expPos > str.length()) { // prevents double exponent causing IOOBE\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n                }\n                dec = str.substring(decPos + 1, expPos);\n            } else {\n                dec = str.substring(decPos + 1);\n            }\n            mant = str.substring(0, decPos);\n            numDecimals = dec.length(); // gets number of digits past the decimal to ensure no loss of precision for floating point numbers.\n        } else {\n            if (expPos > -1) {\n                if (expPos > str.length()) { // prevents double exponent causing IOOBE\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n                }\n                mant = str.substring(0, expPos);\n            } else {\n                mant = str;\n            }\n            dec = null;\n        }\n        if (!Character.isDigit(lastChar) && lastChar != '.') {\n            if (expPos > -1 && expPos < str.length() - 1) {\n                exp = str.substring(expPos + 1, str.length() - 1);\n            } else {\n                exp = null;\n            }\n            //Requesting a specific type..\n            final String numeric = str.substring(0, str.length() - 1);\n            final boolean allZeros = isAllZeros(mant) && isAllZeros(exp);\n            switch (lastChar) {\n                case 'l' :\n                case 'L' :\n                    if (dec == null\n                        && exp == null\n                        && (numeric.charAt(0) == '-' && isDigits(numeric.substring(1)) || isDigits(numeric))) {\n                        try {\n                            return createLong(numeric);\n                        } catch (final NumberFormatException nfe) { // NOPMD\n                            // Too big for a long\n                        }\n                        return createBigInteger(numeric);\n\n                    }\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n                case 'f' :\n                case 'F' :\n                    try {\n                        final Float f = NumberUtils.createFloat(numeric);\n                        if (!(f.isInfinite() || (f.floatValue() == 0.0F && !allZeros))) {\n                            //If it's too big for a float or the float value = 0 and the string\n                            //has non-zeros in it, then float does not have the precision we want\n                            return f;\n                        }\n\n                    } catch (final NumberFormatException nfe) { // NOPMD\n                        // ignore the bad number\n                    }\n                    //$FALL-THROUGH$\n                case 'd' :\n                case 'D' :\n                    try {\n                        final Double d = NumberUtils.createDouble(numeric);\n                        if (!(d.isInfinite() || (d.floatValue() == 0.0D && !allZeros))) {\n                            return d;\n                        }\n                    } catch (final NumberFormatException nfe) { // NOPMD\n                        // ignore the bad number\n                    }\n                    try {\n                        return createBigDecimal(numeric);\n                    } catch (final NumberFormatException e) { // NOPMD\n                        // ignore the bad number\n                    }\n                    //$FALL-THROUGH$\n                default :\n                    throw new NumberFormatException(str + \" is not a valid number.\");\n\n            }\n        }\n        //User doesn't have a preference on the return type, so let's start\n        //small and go from there...\n        if (expPos > -1 && expPos < str.length() - 1) {\n            exp = str.substring(expPos + 1, str.length());\n        } else {\n            exp = null;\n        }\n        if (dec == null && exp == null) { // no decimal point and no exponent\n            //Must be an Integer, Long, Biginteger\n            try {\n                return createInteger(str);\n            } catch (final NumberFormatException nfe) { // NOPMD\n                // ignore the bad number\n            }\n            try {\n                return createLong(str);\n            } catch (final NumberFormatException nfe) { // NOPMD\n                // ignore the bad number\n            }\n            return createBigInteger(str);\n        }\n\n        //Must be a Float, Double, BigDecimal\n        final boolean allZeros = isAllZeros(mant) && isAllZeros(exp);\n        try {\n                final Float f = createFloat(str);\n                if (!(f.isInfinite() || (f.floatValue() == 0.0F && !allZeros))) {\n                    return f;\n                }\n        } catch (final NumberFormatException nfe) { // NOPMD\n            // ignore the bad number\n        }\n        try {\n                final Double d = createDouble(str);\n                if (!(d.isInfinite() || (d.doubleValue() == 0.0D && !allZeros))) {\n                    return d;\n                }\n        } catch (final NumberFormatException nfe) { // NOPMD\n            // ignore the bad number\n        }\n\n        return createBigDecimal(str);\n    }\n",
+        "begin_line": 450,
+        "end_line": 610,
+        "comment": "\n     * <p>Turns a string value into a java.lang.Number.</p>\n     *\n     * <p>If the string starts with {@code 0x} or {@code -0x} (lower or upper case) or {@code #} or {@code -#}, it\n     * will be interpreted as a hexadecimal Integer - or Long, if the number of digits after the\n     * prefix is more than 8 - or BigInteger if there are more than 16 digits.\n     * </p>\n     * <p>Then, the value is examined for a type qualifier on the end, i.e. one of\n     * <code>'f','F','d','D','l','L'</code>.  If it is found, it starts \n     * trying to create successively larger types from the type specified\n     * until one is found that can represent the value.</p>\n     *\n     * <p>If a type specifier is not found, it will check for a decimal point\n     * and then try successively larger types from <code>Integer</code> to\n     * <code>BigInteger</code> and from <code>Float</code> to\n    * <code>BigDecimal</code>.</p>\n    * \n     * <p>\n     * Integral values with a leading {@code 0} will be interpreted as octal; the returned number will\n     * be Integer, Long or BigDecimal as appropriate.\n     * </p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     *\n     * <p>This method does not trim the input string, i.e., strings with leading\n     * or trailing spaces will generate NumberFormatExceptions.</p>\n     *\n     * @param str  String containing a number, may be null\n     * @return Number created from the string (or null if the input is null)\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "NumberUtils.isAllZeros#620",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.isAllZeros(java.lang.String)",
+        "snippet": "    private static boolean isAllZeros(final String str) {\n        if (str == null) {\n            return true;\n        }\n        for (int i = str.length() - 1; i >= 0; i--) {\n            if (str.charAt(i) != '0') {\n                return false;\n            }\n        }\n        return str.length() > 0;\n    }\n",
+        "begin_line": 620,
+        "end_line": 630,
+        "comment": "\n     * <p>Utility method for {@link #createNumber(java.lang.String)}.</p>\n     *\n     * <p>Returns <code>true</code> if s is <code>null</code>.</p>\n     * \n     * @param str  the String to check\n     * @return if it is all zeros or <code>null</code>\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.378
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "NumberUtils.createFloat#642",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/lang3/math/NumberUtils.java",
+        "class_name": "org.apache.commons.lang3.math.NumberUtils",
+        "signature": "org.apache.commons.lang3.math.NumberUtils.createFloat(java.lang.String)",
+        "snippet": "    public static Float createFloat(final String str) {\n        if (str == null) {\n            return null;\n        }\n        return Float.valueOf(str);\n    }\n",
+        "begin_line": 642,
+        "end_line": 647,
+        "comment": "\n     * <p>Convert a <code>String</code> to a <code>Float</code>.</p>\n     *\n     * <p>Returns <code>null</code> if the string is <code>null</code>.</p>\n     * \n     * @param str  a <code>String</code> to convert, may be null\n     * @return converted <code>Float</code> (or null if the input is null)\n     * @throws NumberFormatException if the value cannot be converted\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.378
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "StringUtils.isBlank#255",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/lang3/StringUtils.java",
+        "class_name": "org.apache.commons.lang3.StringUtils",
+        "signature": "org.apache.commons.lang3.StringUtils.isBlank(java.lang.CharSequence)",
+        "snippet": "    public static boolean isBlank(final CharSequence cs) {\n        int strLen;\n        if (cs == null || (strLen = cs.length()) == 0) {\n            return true;\n        }\n        for (int i = 0; i < strLen; i++) {\n            if (Character.isWhitespace(cs.charAt(i)) == false) {\n                return false;\n            }\n        }\n        return true;\n    }\n",
+        "begin_line": 255,
+        "end_line": 266,
+        "comment": "\n     * <p>Checks if a CharSequence is whitespace, empty (\"\") or null.</p>\n     *\n     * <pre>\n     * StringUtils.isBlank(null)      = true\n     * StringUtils.isBlank(\"\")        = true\n     * StringUtils.isBlank(\" \")       = true\n     * StringUtils.isBlank(\"bob\")     = false\n     * StringUtils.isBlank(\"  bob  \") = false\n     * </pre>\n     *\n     * @param cs  the CharSequence to check, may be null\n     * @return {@code true} if the CharSequence is null, empty or whitespace\n     * @since 2.0\n     * @since 3.0 Changed signature from isBlank(String) to isBlank(CharSequence)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.3162
+        },
+        "num_failing_tests": 1
+    }
+]

@@ -1,0 +1,656 @@
+coverage run -m pytest pandas/tests/arrays/categorical/test_algos.py::test_replace
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 3 items
+
+pandas/tests/arrays/categorical/test_algos.py FFF                        [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_replace[b-c-result0] ___________________________
+
+to_replace = 'b', value = 'c', result = ['a', 'c']
+
+    @pytest.mark.parametrize(
+        "to_replace, value, result",
+        [("b", "c", ["a", "c"]), ("c", "d", ["a", "b"]), ("b", None, ["a", None])],
+    )
+    def test_replace(to_replace, value, result):
+        # GH 26988
+        cat = pd.Categorical(["a", "b"])
+        expected = pd.Categorical(result)
+>       result = cat.replace(to_replace, value)
+E       AttributeError: 'Categorical' object has no attribute 'replace'
+
+pandas/tests/arrays/categorical/test_algos.py:70: AttributeError
+__________________________ test_replace[c-d-result1] ___________________________
+
+to_replace = 'c', value = 'd', result = ['a', 'b']
+
+    @pytest.mark.parametrize(
+        "to_replace, value, result",
+        [("b", "c", ["a", "c"]), ("c", "d", ["a", "b"]), ("b", None, ["a", None])],
+    )
+    def test_replace(to_replace, value, result):
+        # GH 26988
+        cat = pd.Categorical(["a", "b"])
+        expected = pd.Categorical(result)
+>       result = cat.replace(to_replace, value)
+E       AttributeError: 'Categorical' object has no attribute 'replace'
+
+pandas/tests/arrays/categorical/test_algos.py:70: AttributeError
+_________________________ test_replace[b-None-result2] _________________________
+
+to_replace = 'b', value = None, result = ['a', None]
+
+    @pytest.mark.parametrize(
+        "to_replace, value, result",
+        [("b", "c", ["a", "c"]), ("c", "d", ["a", "b"]), ("b", None, ["a", None])],
+    )
+    def test_replace(to_replace, value, result):
+        # GH 26988
+        cat = pd.Categorical(["a", "b"])
+        expected = pd.Categorical(result)
+>       result = cat.replace(to_replace, value)
+E       AttributeError: 'Categorical' object has no attribute 'replace'
+
+pandas/tests/arrays/categorical/test_algos.py:70: AttributeError
+=========================== short test summary info ============================
+FAILED pandas/tests/arrays/categorical/test_algos.py::test_replace[b-c-result0]
+FAILED pandas/tests/arrays/categorical/test_algos.py::test_replace[c-d-result1]
+FAILED pandas/tests/arrays/categorical/test_algos.py::test_replace[b-None-result2]
+============================== 3 failed in 0.30s ===============================
+
+coverage run -m pytest pandas/tests/frame/test_replace.py::TestDataFrameReplace::test_categorical_replace_with_dict
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 2 items
+
+pandas/tests/frame/test_replace.py FF                                    [100%]
+
+=================================== FAILURES ===================================
+_ TestDataFrameReplace.test_categorical_replace_with_dict[replace_dict0-final_data0] _
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category, to_replace = 1
+value = 3, inplace = False, filter = {0}, regex = False, convert = False
+
+    def replace(
+        self, to_replace, value, inplace=False, filter=None, regex=False, convert=True
+    ):
+        """replace the to_replace value with value, possible to create new
+        blocks here this is just a call to putmask. regex is not used here.
+        It is used in ObjectBlocks.  It is here for API compatibility.
+        """
+    
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        original_to_replace = to_replace
+    
+        # If we cannot replace with own dtype, convert to ObjectBlock and
+        # retry
+        if not self._can_hold_element(to_replace):
+            if not isinstance(to_replace, list):
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            to_replace = [x for x in to_replace if self._can_hold_element(x)]
+            if not len(to_replace):
+                # GH#28084 avoid costly checks since we can infer
+                #  that there is nothing to replace in this block
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            if len(to_replace) == 1:
+                # _can_hold_element checks have reduced this back to the
+                #  scalar case and we can avoid a costly object cast
+                return self.replace(
+                    to_replace[0],
+                    value,
+                    inplace=inplace,
+                    filter=filter,
+                    regex=regex,
+                    convert=convert,
+                )
+    
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise AssertionError
+    
+            # try again with a compatible block
+            block = self.astype(object)
+            return block.replace(
+                to_replace=to_replace,
+                value=value,
+                inplace=inplace,
+                filter=filter,
+                regex=regex,
+                convert=convert,
+            )
+    
+        values = self.values
+        if lib.is_scalar(to_replace) and isinstance(values, np.ndarray):
+            # The only non-DatetimeLike class that also has a non-trivial
+            #  try_coerce_args is ObjectBlock, but that overrides replace,
+            #  so does not get here.
+            to_replace = convert_scalar(values, to_replace)
+    
+        mask = missing.mask_missing(values, to_replace)
+        if filter is not None:
+            filtered_out = ~self.mgr_locs.isin(filter)
+            mask[filtered_out.nonzero()[0]] = False
+    
+        if not mask.any():
+            if inplace:
+                return [self]
+            return [self.copy()]
+    
+        try:
+>           blocks = self.putmask(mask, value, inplace=inplace)
+
+pandas/core/internals/blocks.py:759: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category
+mask = array([ True, False]), new = 3, align = True, inplace = False, axis = 0
+transpose = False
+
+    def putmask(self, mask, new, align=True, inplace=False, axis=0, transpose=False):
+        """
+        putmask the data to the block; we must be a single block and not
+        generate other blocks
+    
+        return the resulting block
+    
+        Parameters
+        ----------
+        mask  : the condition to respect
+        new : a ndarray/object
+        align : boolean, perform alignment on other/cond, default is True
+        inplace : perform inplace modification, default is False
+    
+        Returns
+        -------
+        a new block, the result of the putmask
+        """
+        inplace = validate_bool_kwarg(inplace, "inplace")
+    
+        # use block's copy logic.
+        # .values may be an Index which does shallow copy by default
+        new_values = self.values if inplace else self.copy().values
+    
+        if isinstance(new, np.ndarray) and len(new) == len(mask):
+            new = new[mask]
+    
+        mask = _safe_reshape(mask, new_values.shape)
+    
+>       new_values[mask] = new
+
+pandas/core/internals/blocks.py:1645: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = [1, 2]
+Categories (2, int64): [1, 2], key = array([ True, False])
+value = 3
+
+    def __setitem__(self, key, value):
+        """
+        Item assignment.
+    
+        Raises
+        ------
+        ValueError
+            If (one or more) Value is not in categories or if a assigned
+            `Categorical` does not have the same categories
+        """
+        value = extract_array(value, extract_numpy=True)
+    
+        # require identical categories set
+        if isinstance(value, Categorical):
+            if not is_dtype_equal(self, value):
+                raise ValueError(
+                    "Cannot set a Categorical with another, "
+                    "without identical categories"
+                )
+            if not self.categories.equals(value.categories):
+                new_codes = _recode_for_categories(
+                    value.codes, value.categories, self.categories
+                )
+                value = Categorical.from_codes(new_codes, dtype=self.dtype)
+    
+        rvalue = value if is_list_like(value) else [value]
+    
+        from pandas import Index
+    
+        to_add = Index(rvalue).difference(self.categories)
+    
+        # no assignments of values not in categories, but it's always ok to set
+        # something to np.nan
+        if len(to_add) and not isna(to_add).all():
+>           raise ValueError(
+                "Cannot setitem on a Categorical with a new "
+                "category, set the categories first"
+            )
+E           ValueError: Cannot setitem on a Categorical with a new category, set the categories first
+
+pandas/core/arrays/categorical.py:2122: ValueError
+
+During handling of the above exception, another exception occurred:
+
+self = <pandas.tests.frame.test_replace.TestDataFrameReplace object at 0x7f4f462607f0>
+replace_dict = {'a': 1, 'b': 1}, final_data = [[3, 3], [2, 2]]
+
+    @pytest.mark.parametrize(
+        "replace_dict, final_data",
+        [({"a": 1, "b": 1}, [[3, 3], [2, 2]]), ({"a": 1, "b": 2}, [[3, 1], [2, 3]])],
+    )
+    def test_categorical_replace_with_dict(self, replace_dict, final_data):
+        # GH 26988
+        df = DataFrame([[1, 1], [2, 2]], columns=["a", "b"], dtype="category")
+        expected = DataFrame(final_data, columns=["a", "b"], dtype="category")
+        expected["a"] = expected["a"].cat.set_categories([1, 2, 3])
+        expected["b"] = expected["b"].cat.set_categories([1, 2, 3])
+>       result = df.replace(replace_dict, 3)
+
+pandas/tests/frame/test_replace.py:1309: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/frame.py:4135: in replace
+    return super().replace(
+pandas/core/generic.py:6782: in replace
+    new_data = new_data.replace(
+pandas/core/internals/managers.py:585: in replace
+    return self.apply("replace", value=value, **kwargs)
+pandas/core/internals/managers.py:435: in apply
+    applied = getattr(b, f)(**kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category, to_replace = 1
+value = 3, inplace = False, filter = {0}, regex = False, convert = False
+
+    def replace(
+        self, to_replace, value, inplace=False, filter=None, regex=False, convert=True
+    ):
+        """replace the to_replace value with value, possible to create new
+        blocks here this is just a call to putmask. regex is not used here.
+        It is used in ObjectBlocks.  It is here for API compatibility.
+        """
+    
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        original_to_replace = to_replace
+    
+        # If we cannot replace with own dtype, convert to ObjectBlock and
+        # retry
+        if not self._can_hold_element(to_replace):
+            if not isinstance(to_replace, list):
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            to_replace = [x for x in to_replace if self._can_hold_element(x)]
+            if not len(to_replace):
+                # GH#28084 avoid costly checks since we can infer
+                #  that there is nothing to replace in this block
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            if len(to_replace) == 1:
+                # _can_hold_element checks have reduced this back to the
+                #  scalar case and we can avoid a costly object cast
+                return self.replace(
+                    to_replace[0],
+                    value,
+                    inplace=inplace,
+                    filter=filter,
+                    regex=regex,
+                    convert=convert,
+                )
+    
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise AssertionError
+    
+            # try again with a compatible block
+            block = self.astype(object)
+            return block.replace(
+                to_replace=to_replace,
+                value=value,
+                inplace=inplace,
+                filter=filter,
+                regex=regex,
+                convert=convert,
+            )
+    
+        values = self.values
+        if lib.is_scalar(to_replace) and isinstance(values, np.ndarray):
+            # The only non-DatetimeLike class that also has a non-trivial
+            #  try_coerce_args is ObjectBlock, but that overrides replace,
+            #  so does not get here.
+            to_replace = convert_scalar(values, to_replace)
+    
+        mask = missing.mask_missing(values, to_replace)
+        if filter is not None:
+            filtered_out = ~self.mgr_locs.isin(filter)
+            mask[filtered_out.nonzero()[0]] = False
+    
+        if not mask.any():
+            if inplace:
+                return [self]
+            return [self.copy()]
+    
+        try:
+            blocks = self.putmask(mask, value, inplace=inplace)
+            # Note: it is _not_ the case that self._can_hold_element(value)
+            #  is always true at this point.  In particular, that can fail
+            #  for:
+            #   "2u" with bool-dtype, float-dtype
+            #   0.5 with int64-dtype
+            #   np.nan with int64-dtype
+        except (TypeError, ValueError):
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise
+    
+>           assert not self._can_hold_element(value), value
+E           AssertionError: 3
+
+pandas/core/internals/blocks.py:772: AssertionError
+_ TestDataFrameReplace.test_categorical_replace_with_dict[replace_dict1-final_data1] _
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category, to_replace = 1
+value = 3, inplace = False, filter = {0}, regex = False, convert = False
+
+    def replace(
+        self, to_replace, value, inplace=False, filter=None, regex=False, convert=True
+    ):
+        """replace the to_replace value with value, possible to create new
+        blocks here this is just a call to putmask. regex is not used here.
+        It is used in ObjectBlocks.  It is here for API compatibility.
+        """
+    
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        original_to_replace = to_replace
+    
+        # If we cannot replace with own dtype, convert to ObjectBlock and
+        # retry
+        if not self._can_hold_element(to_replace):
+            if not isinstance(to_replace, list):
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            to_replace = [x for x in to_replace if self._can_hold_element(x)]
+            if not len(to_replace):
+                # GH#28084 avoid costly checks since we can infer
+                #  that there is nothing to replace in this block
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            if len(to_replace) == 1:
+                # _can_hold_element checks have reduced this back to the
+                #  scalar case and we can avoid a costly object cast
+                return self.replace(
+                    to_replace[0],
+                    value,
+                    inplace=inplace,
+                    filter=filter,
+                    regex=regex,
+                    convert=convert,
+                )
+    
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise AssertionError
+    
+            # try again with a compatible block
+            block = self.astype(object)
+            return block.replace(
+                to_replace=to_replace,
+                value=value,
+                inplace=inplace,
+                filter=filter,
+                regex=regex,
+                convert=convert,
+            )
+    
+        values = self.values
+        if lib.is_scalar(to_replace) and isinstance(values, np.ndarray):
+            # The only non-DatetimeLike class that also has a non-trivial
+            #  try_coerce_args is ObjectBlock, but that overrides replace,
+            #  so does not get here.
+            to_replace = convert_scalar(values, to_replace)
+    
+        mask = missing.mask_missing(values, to_replace)
+        if filter is not None:
+            filtered_out = ~self.mgr_locs.isin(filter)
+            mask[filtered_out.nonzero()[0]] = False
+    
+        if not mask.any():
+            if inplace:
+                return [self]
+            return [self.copy()]
+    
+        try:
+>           blocks = self.putmask(mask, value, inplace=inplace)
+
+pandas/core/internals/blocks.py:759: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category
+mask = array([ True, False]), new = 3, align = True, inplace = False, axis = 0
+transpose = False
+
+    def putmask(self, mask, new, align=True, inplace=False, axis=0, transpose=False):
+        """
+        putmask the data to the block; we must be a single block and not
+        generate other blocks
+    
+        return the resulting block
+    
+        Parameters
+        ----------
+        mask  : the condition to respect
+        new : a ndarray/object
+        align : boolean, perform alignment on other/cond, default is True
+        inplace : perform inplace modification, default is False
+    
+        Returns
+        -------
+        a new block, the result of the putmask
+        """
+        inplace = validate_bool_kwarg(inplace, "inplace")
+    
+        # use block's copy logic.
+        # .values may be an Index which does shallow copy by default
+        new_values = self.values if inplace else self.copy().values
+    
+        if isinstance(new, np.ndarray) and len(new) == len(mask):
+            new = new[mask]
+    
+        mask = _safe_reshape(mask, new_values.shape)
+    
+>       new_values[mask] = new
+
+pandas/core/internals/blocks.py:1645: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = [1, 2]
+Categories (2, int64): [1, 2], key = array([ True, False])
+value = 3
+
+    def __setitem__(self, key, value):
+        """
+        Item assignment.
+    
+        Raises
+        ------
+        ValueError
+            If (one or more) Value is not in categories or if a assigned
+            `Categorical` does not have the same categories
+        """
+        value = extract_array(value, extract_numpy=True)
+    
+        # require identical categories set
+        if isinstance(value, Categorical):
+            if not is_dtype_equal(self, value):
+                raise ValueError(
+                    "Cannot set a Categorical with another, "
+                    "without identical categories"
+                )
+            if not self.categories.equals(value.categories):
+                new_codes = _recode_for_categories(
+                    value.codes, value.categories, self.categories
+                )
+                value = Categorical.from_codes(new_codes, dtype=self.dtype)
+    
+        rvalue = value if is_list_like(value) else [value]
+    
+        from pandas import Index
+    
+        to_add = Index(rvalue).difference(self.categories)
+    
+        # no assignments of values not in categories, but it's always ok to set
+        # something to np.nan
+        if len(to_add) and not isna(to_add).all():
+>           raise ValueError(
+                "Cannot setitem on a Categorical with a new "
+                "category, set the categories first"
+            )
+E           ValueError: Cannot setitem on a Categorical with a new category, set the categories first
+
+pandas/core/arrays/categorical.py:2122: ValueError
+
+During handling of the above exception, another exception occurred:
+
+self = <pandas.tests.frame.test_replace.TestDataFrameReplace object at 0x7f4f45264100>
+replace_dict = {'a': 1, 'b': 2}, final_data = [[3, 1], [2, 3]]
+
+    @pytest.mark.parametrize(
+        "replace_dict, final_data",
+        [({"a": 1, "b": 1}, [[3, 3], [2, 2]]), ({"a": 1, "b": 2}, [[3, 1], [2, 3]])],
+    )
+    def test_categorical_replace_with_dict(self, replace_dict, final_data):
+        # GH 26988
+        df = DataFrame([[1, 1], [2, 2]], columns=["a", "b"], dtype="category")
+        expected = DataFrame(final_data, columns=["a", "b"], dtype="category")
+        expected["a"] = expected["a"].cat.set_categories([1, 2, 3])
+        expected["b"] = expected["b"].cat.set_categories([1, 2, 3])
+>       result = df.replace(replace_dict, 3)
+
+pandas/tests/frame/test_replace.py:1309: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/frame.py:4135: in replace
+    return super().replace(
+pandas/core/generic.py:6782: in replace
+    new_data = new_data.replace(
+pandas/core/internals/managers.py:585: in replace
+    return self.apply("replace", value=value, **kwargs)
+pandas/core/internals/managers.py:435: in apply
+    applied = getattr(b, f)(**kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = CategoricalBlock: slice(0, 1, 1), 1 x 2, dtype: category, to_replace = 1
+value = 3, inplace = False, filter = {0}, regex = False, convert = False
+
+    def replace(
+        self, to_replace, value, inplace=False, filter=None, regex=False, convert=True
+    ):
+        """replace the to_replace value with value, possible to create new
+        blocks here this is just a call to putmask. regex is not used here.
+        It is used in ObjectBlocks.  It is here for API compatibility.
+        """
+    
+        inplace = validate_bool_kwarg(inplace, "inplace")
+        original_to_replace = to_replace
+    
+        # If we cannot replace with own dtype, convert to ObjectBlock and
+        # retry
+        if not self._can_hold_element(to_replace):
+            if not isinstance(to_replace, list):
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            to_replace = [x for x in to_replace if self._can_hold_element(x)]
+            if not len(to_replace):
+                # GH#28084 avoid costly checks since we can infer
+                #  that there is nothing to replace in this block
+                if inplace:
+                    return [self]
+                return [self.copy()]
+    
+            if len(to_replace) == 1:
+                # _can_hold_element checks have reduced this back to the
+                #  scalar case and we can avoid a costly object cast
+                return self.replace(
+                    to_replace[0],
+                    value,
+                    inplace=inplace,
+                    filter=filter,
+                    regex=regex,
+                    convert=convert,
+                )
+    
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise AssertionError
+    
+            # try again with a compatible block
+            block = self.astype(object)
+            return block.replace(
+                to_replace=to_replace,
+                value=value,
+                inplace=inplace,
+                filter=filter,
+                regex=regex,
+                convert=convert,
+            )
+    
+        values = self.values
+        if lib.is_scalar(to_replace) and isinstance(values, np.ndarray):
+            # The only non-DatetimeLike class that also has a non-trivial
+            #  try_coerce_args is ObjectBlock, but that overrides replace,
+            #  so does not get here.
+            to_replace = convert_scalar(values, to_replace)
+    
+        mask = missing.mask_missing(values, to_replace)
+        if filter is not None:
+            filtered_out = ~self.mgr_locs.isin(filter)
+            mask[filtered_out.nonzero()[0]] = False
+    
+        if not mask.any():
+            if inplace:
+                return [self]
+            return [self.copy()]
+    
+        try:
+            blocks = self.putmask(mask, value, inplace=inplace)
+            # Note: it is _not_ the case that self._can_hold_element(value)
+            #  is always true at this point.  In particular, that can fail
+            #  for:
+            #   "2u" with bool-dtype, float-dtype
+            #   0.5 with int64-dtype
+            #   np.nan with int64-dtype
+        except (TypeError, ValueError):
+            # GH 22083, TypeError or ValueError occurred within error handling
+            # causes infinite loop. Cast and retry only if not objectblock.
+            if is_object_dtype(self):
+                raise
+    
+>           assert not self._can_hold_element(value), value
+E           AssertionError: 3
+
+pandas/core/internals/blocks.py:772: AssertionError
+=========================== short test summary info ============================
+FAILED pandas/tests/frame/test_replace.py::TestDataFrameReplace::test_categorical_replace_with_dict[replace_dict0-final_data0]
+FAILED pandas/tests/frame/test_replace.py::TestDataFrameReplace::test_categorical_replace_with_dict[replace_dict1-final_data1]
+============================== 2 failed in 1.75s ===============================

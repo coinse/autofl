@@ -1,0 +1,498 @@
+[
+    {
+        "name": "FastMath.atan#2432",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.atan(double, double, boolean)",
+        "snippet": "    private static double atan(double xa, double xb, boolean leftPlane) {\n        boolean negate = false;\n        int idx;\n\n        if (xa == 0.0) { // Matches +/- 0.0; return correct sign\n            return leftPlane ? copySign(Math.PI, xa) : xa;\n        }\n\n        if (xa < 0) {\n            // negative\n            xa = -xa;\n            xb = -xb;\n            negate = true;\n        }\n\n        if (xa > 1.633123935319537E16) { // Very large input\n            return (negate ^ leftPlane) ? (-Math.PI * F_1_2) : (Math.PI * F_1_2);\n        }\n\n        /* Estimate the closest tabulated arctan value, compute eps = xa-tangentTable */\n        if (xa < 1) {\n            idx = (int) (((-1.7168146928204136 * xa * xa + 8.0) * xa) + 0.5);\n        } else {\n            final double oneOverXa = 1 / xa;\n            idx = (int) (-((-1.7168146928204136 * oneOverXa * oneOverXa + 8.0) * oneOverXa) + 13.07);\n        }\n        double epsA = xa - TANGENT_TABLE_A[idx];\n        double epsB = -(epsA - xa + TANGENT_TABLE_A[idx]);\n        epsB += xb - TANGENT_TABLE_B[idx];\n\n        double temp = epsA + epsB;\n        epsB = -(temp - epsA - epsB);\n        epsA = temp;\n\n        /* Compute eps = eps / (1.0 + xa*tangent) */\n        temp = xa * HEX_40000000;\n        double ya = xa + temp - temp;\n        double yb = xb + xa - ya;\n        xa = ya;\n        xb += yb;\n\n        //if (idx > 8 || idx == 0)\n        if (idx == 0) {\n            /* If the slope of the arctan is gentle enough (< 0.45), this approximation will suffice */\n            //double denom = 1.0 / (1.0 + xa*tangentTableA[idx] + xb*tangentTableA[idx] + xa*tangentTableB[idx] + xb*tangentTableB[idx]);\n            final double denom = 1d / (1d + (xa + xb) * (TANGENT_TABLE_A[idx] + TANGENT_TABLE_B[idx]));\n            //double denom = 1.0 / (1.0 + xa*tangentTableA[idx]);\n            ya = epsA * denom;\n            yb = epsB * denom;\n        } else {\n            double temp2 = xa * TANGENT_TABLE_A[idx];\n            double za = 1d + temp2;\n            double zb = -(za - 1d - temp2);\n            temp2 = xb * TANGENT_TABLE_A[idx] + xa * TANGENT_TABLE_B[idx];\n            temp = za + temp2;\n            zb += -(temp - za - temp2);\n            za = temp;\n\n            zb += xb * TANGENT_TABLE_B[idx];\n            ya = epsA / za;\n\n            temp = ya * HEX_40000000;\n            final double yaa = (ya + temp) - temp;\n            final double yab = ya - yaa;\n\n            temp = za * HEX_40000000;\n            final double zaa = (za + temp) - temp;\n            final double zab = za - zaa;\n\n            /* Correct for rounding in division */\n            yb = (epsA - yaa * zaa - yaa * zab - yab * zaa - yab * zab) / za;\n\n            yb += -epsA * zb / za / za;\n            yb += epsB / za;\n        }\n\n\n        epsA = ya;\n        epsB = yb;\n\n        /* Evaluate polynomial */\n        final double epsA2 = epsA * epsA;\n\n        /*\n    yb = -0.09001346640161823;\n    yb = yb * epsA2 + 0.11110718400605211;\n    yb = yb * epsA2 + -0.1428571349122913;\n    yb = yb * epsA2 + 0.19999999999273194;\n    yb = yb * epsA2 + -0.33333333333333093;\n    yb = yb * epsA2 * epsA;\n         */\n\n        yb = 0.07490822288864472;\n        yb = yb * epsA2 + -0.09088450866185192;\n        yb = yb * epsA2 + 0.11111095942313305;\n        yb = yb * epsA2 + -0.1428571423679182;\n        yb = yb * epsA2 + 0.19999999999923582;\n        yb = yb * epsA2 + -0.33333333333333287;\n        yb = yb * epsA2 * epsA;\n\n\n        ya = epsA;\n\n        temp = ya + yb;\n        yb = -(temp - ya - yb);\n        ya = temp;\n\n        /* Add in effect of epsB.   atan'(x) = 1/(1+x^2) */\n        yb += epsB / (1d + epsA * epsA);\n\n        //result = yb + eighths[idx] + ya;\n        double za = EIGHTHS[idx] + ya;\n        double zb = -(za - EIGHTHS[idx] - ya);\n        temp = za + yb;\n        zb += -(temp - za - yb);\n        za = temp;\n\n        double result = za + zb;\n        double resultb = -(result - za - zb);\n\n        if (leftPlane) {\n            // Result is in the left plane\n            final double pia = 1.5707963267948966 * 2;\n            final double pib = 6.123233995736766E-17 * 2;\n\n            za = pia - result;\n            zb = -(za - pia + result);\n            zb += pib - resultb;\n\n            result = za + zb;\n            resultb = -(result - za - zb);\n        }\n\n\n        if (negate ^ leftPlane) {\n            result = -result;\n        }\n\n        return result;\n    }\n",
+        "begin_line": 2432,
+        "end_line": 2571,
+        "comment": " Internal helper function to compute arctangent.\n     * @param xa number from which arctangent is requested\n     * @param xb extra bits for x (may be 0.0)\n     * @param leftPlane if true, result angle must be put in the left half plane\n     * @return atan(xa + xb) (or angle shifted by {@code PI} if leftPlane is true)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.atan2#754",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.atan2(org.apache.commons.math3.analysis.differentiation.DerivativeStructure, org.apache.commons.math3.analysis.differentiation.DerivativeStructure)",
+        "snippet": "    public static DerivativeStructure atan2(final DerivativeStructure y, final DerivativeStructure x)\n        throws DimensionMismatchException {\n        y.compiler.checkCompatibility(x.compiler);\n        final DerivativeStructure result = new DerivativeStructure(y.compiler);\n        y.compiler.atan2(y.data, 0, x.data, 0, result.data, 0);\n        return result;\n    }\n",
+        "begin_line": 754,
+        "end_line": 760,
+        "comment": " Two arguments arc tangent operation.\n     * @param y first argument of the arc tangent\n     * @param x second argument of the arc tangent\n     * @return atan2(y, x)\n     * @exception DimensionMismatchException if number of free parameters or orders are inconsistent\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.atan2#1382",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.atan2(double[], int, double[], int, double[], int)",
+        "snippet": "    public void atan2(final double[] y, final int yOffset,\n                      final double[] x, final int xOffset,\n                      final double[] result, final int resultOffset) {\n\n        // compute r = sqrt(x^2+y^2)\n        double[] tmp1 = new double[getSize()];\n        multiply(x, xOffset, x, xOffset, tmp1, 0);      // x^2\n        double[] tmp2 = new double[getSize()];\n        multiply(y, yOffset, y, yOffset, tmp2, 0);      // y^2\n        add(tmp1, 0, tmp2, 0, tmp2, 0);                 // x^2 + y^2\n        rootN(tmp2, 0, 2, tmp1, 0);                     // r = sqrt(x^2 + y^2)\n\n        if (x[xOffset] >= 0) {\n\n            // compute atan2(y, x) = 2 atan(y / (r + x))\n            add(tmp1, 0, x, xOffset, tmp2, 0);          // r + x\n            divide(y, yOffset, tmp2, 0, tmp1, 0);       // y /(r + x)\n            atan(tmp1, 0, tmp2, 0);                     // atan(y / (r + x))\n            for (int i = 0; i < tmp2.length; ++i) {\n                result[resultOffset + i] = 2 * tmp2[i]; // 2 * atan(y / (r + x))\n            }\n\n        } else {\n\n            // compute atan2(y, x) = +/- pi - 2 atan(y / (r - x))\n            subtract(tmp1, 0, x, xOffset, tmp2, 0);     // r - x\n            divide(y, yOffset, tmp2, 0, tmp1, 0);       // y /(r - x)\n            atan(tmp1, 0, tmp2, 0);                     // atan(y / (r - x))\n            result[resultOffset] =\n                    ((tmp2[0] <= 0) ? -FastMath.PI : FastMath.PI) - 2 * tmp2[0]; // +/-pi - 2 * atan(y / (r - x))\n            for (int i = 1; i < tmp2.length; ++i) {\n                result[resultOffset + i] = -2 * tmp2[i]; // +/-pi - 2 * atan(y / (r - x))\n            }\n\n        }\n\n        // fix value to take special cases (+0/+0, +0/-0, -0/+0, -0/-0, +/-infinity) correctly\n\n    }\n",
+        "begin_line": 1382,
+        "end_line": 1420,
+        "comment": " Compute two arguments arc tangent of a derivative structure.\n     * @param y array holding the first operand\n     * @param yOffset offset of the first operand in its array\n     * @param x array holding the second operand\n     * @param xOffset offset of the second operand in its array\n     * @param result array where result must be stored (for\n     * two arguments arc tangent the result array <em>cannot</em>\n     * be the input array)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.atan#1323",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.atan(double[], int, double[], int)",
+        "snippet": "    public void atan(final double[] operand, final int operandOffset,\n                     final double[] result, final int resultOffset) {\n\n        // create the function value and derivatives\n        double[] function = new double[1 + order];\n        final double x = operand[operandOffset];\n        function[0] = FastMath.atan(x);\n        if (order > 0) {\n            // the nth order derivative of atan has the form:\n            // dn(atan(x)/dxn = Q_n(x) / (1 + x^2)^n\n            // where Q_n(x) is a degree n-1 polynomial with same parity as n-1\n            // Q_1(x) = 1, Q_2(x) = -2x, Q_3(x) = 6x^2 - 2 ...\n            // the general recurrence relation for Q_n is:\n            // Q_n(x) = (1+x^2) Q_(n-1)'(x) - 2(n-1) x Q_(n-1)(x)\n            // as per polynomial parity, we can store coefficients of both Q_(n-1) and Q_n in the same array\n            final double[] q = new double[order];\n            q[0] = 1;\n            final double x2    = x * x;\n            final double f     = 1.0 / (1 + x2);\n            double coeff = f;\n            function[1] = coeff * q[0];\n            for (int n = 2; n <= order; ++n) {\n\n                // update and evaluate polynomial Q_n(x)\n                double v = 0;\n                q[n - 1] = -n * q[n - 2];\n                for (int k = n - 1; k >= 0; k -= 2) {\n                    v = v * x2 + q[k];\n                    if (k > 2) {\n                        q[k - 2] = (k - 1) * q[k - 1] + (k - 1 - 2 * n) * q[k - 3];\n                    } else if (k == 2) {\n                        q[0] = q[1];\n                    }\n                }\n                if ((n & 0x1) == 0) {\n                    v *= x;\n                }\n\n                coeff *= f;\n                function[n] = coeff * v;\n\n            }\n        }\n\n        // apply function composition\n        compose(operand, operandOffset, function, result, resultOffset);\n\n    }\n",
+        "begin_line": 1323,
+        "end_line": 1370,
+        "comment": " Compute arc tangent of a derivative structure.\n     * @param operand array holding the operand\n     * @param operandOffset offset of the operand in its array\n     * @param result array where result must be stored (for\n     * arc tangent the result array <em>cannot</em> be the input\n     * array)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.atan#2422",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.atan(double)",
+        "snippet": "    public static double atan(double x) {\n        return atan(x, 0.0, false);\n    }\n",
+        "begin_line": 2422,
+        "end_line": 2424,
+        "comment": "\n     * Arctangent function\n     *  @param x a number\n     *  @return atan(x)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.4472
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.divide#793",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.divide(double[], int, double[], int, double[], int)",
+        "snippet": "    public void divide(final double[] lhs, final int lhsOffset,\n                       final double[] rhs, final int rhsOffset,\n                       final double[] result, final int resultOffset) {\n        final double[] reciprocal = new double[getSize()];\n        pow(rhs, lhsOffset, -1, reciprocal, 0);\n        multiply(lhs, lhsOffset, reciprocal, 0, result, resultOffset);\n    }\n",
+        "begin_line": 793,
+        "end_line": 799,
+        "comment": " Perform division of two derivative structures.\n     * @param lhs array holding left hand side of division\n     * @param lhsOffset offset of the left hand side in its array\n     * @param rhs array right hand side of division\n     * @param rhsOffset offset of the right hand side in its array\n     * @param result array where result must be stored (for\n     * division the result array <em>cannot</em> be one of\n     * the input arrays)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2357
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.pow#869",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.pow(double[], int, int, double[], int)",
+        "snippet": "    public void pow(final double[] operand, final int operandOffset, final int n,\n                    final double[] result, final int resultOffset) {\n\n        if (n == 0) {\n            // special case, x^0 = 1 for all x\n            result[resultOffset] = 1.0;\n            Arrays.fill(result, resultOffset + 1, resultOffset + getSize(), 0);\n            return;\n        }\n\n        // create the power function value and derivatives\n        // [x^n, nx^(n-1), n(n-1)x^(n-2), ... ]\n        double[] function = new double[1 + order];\n\n        if (n > 0) {\n            // strictly positive power\n            final int maxOrder = FastMath.min(order, n);\n            double xk = FastMath.pow(operand[operandOffset], n - maxOrder);\n            for (int i = maxOrder; i > 0; --i) {\n                function[i] = xk;\n                xk *= operand[operandOffset];\n            }\n            function[0] = xk;\n        } else {\n            // strictly negative power\n            final double inv = 1.0 / operand[operandOffset];\n            double xk = FastMath.pow(inv, -n);\n            for (int i = 0; i <= order; ++i) {\n                function[i] = xk;\n                xk *= inv;\n            }\n        }\n\n        double coefficient = n;\n        for (int i = 1; i <= order; ++i) {\n            function[i] *= coefficient;\n            coefficient *= n - i;\n        }\n\n        // apply function composition\n        compose(operand, operandOffset, function, result, resultOffset);\n\n    }\n",
+        "begin_line": 869,
+        "end_line": 911,
+        "comment": " Compute integer power of a derivative structure.\n     * @param operand array holding the operand\n     * @param operandOffset offset of the operand in its array\n     * @param n power to apply\n     * @param result array where result must be stored (for\n     * power the result array <em>cannot</em> be the input\n     * array)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.rootN#942",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.rootN(double[], int, int, double[], int)",
+        "snippet": "    public void rootN(final double[] operand, final int operandOffset, final int n,\n                      final double[] result, final int resultOffset) {\n\n        // create the function value and derivatives\n        // [x^(1/n), (1/n)x^((1/n)-1), (1-n)/n^2x^((1/n)-2), ... ]\n        double[] function = new double[1 + order];\n        double xk;\n        if (n == 2) {\n            function[0] = FastMath.sqrt(operand[operandOffset]);\n            xk          = 0.5 / function[0];\n        } else if (n == 3) {\n            function[0] = FastMath.cbrt(operand[operandOffset]);\n            xk          = 1.0 / (3.0 * function[0] * function[0]);\n        } else {\n            function[0] = FastMath.pow(operand[operandOffset], 1.0 / n);\n            xk          = 1.0 / (n * FastMath.pow(function[0], n - 1));\n        }\n        final double nReciprocal = 1.0 / n;\n        final double xReciprocal = 1.0 / operand[operandOffset];\n        for (int i = 1; i <= order; ++i) {\n            function[i] = xk;\n            xk *= xReciprocal * (nReciprocal - i);\n        }\n\n        // apply function composition\n        compose(operand, operandOffset, function, result, resultOffset);\n\n    }\n",
+        "begin_line": 942,
+        "end_line": 969,
+        "comment": " Compute n<sup>th</sup> root of a derivative structure.\n     * @param operand array holding the operand\n     * @param operandOffset offset of the operand in its array\n     * @param n order of the root\n     * @param result array where result must be stored (for\n     * n<sup>th</sup> root the result array <em>cannot</em> be the input\n     * array)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1826
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.pow#1611",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.pow(double, int)",
+        "snippet": "    public static double pow(double d, int e) {\n\n        if (e == 0) {\n            return 1.0;\n        } else if (e < 0) {\n            e = -e;\n            d = 1.0 / d;\n        }\n\n        // split d as two 26 bits numbers\n        // beware the following expressions must NOT be simplified, they rely on floating point arithmetic properties\n        final int splitFactor = 0x8000001;\n        final double cd       = splitFactor * d;\n        final double d1High   = cd - (cd - d);\n        final double d1Low    = d - d1High;\n\n        // prepare result\n        double resultHigh = 1;\n        double resultLow  = 0;\n\n        // d^(2p)\n        double d2p     = d;\n        double d2pHigh = d1High;\n        double d2pLow  = d1Low;\n\n        while (e != 0) {\n\n            if ((e & 0x1) != 0) {\n                // accurate multiplication result = result * d^(2p) using Veltkamp TwoProduct algorithm\n                // beware the following expressions must NOT be simplified, they rely on floating point arithmetic properties\n                final double tmpHigh = resultHigh * d2p;\n                final double cRH     = splitFactor * resultHigh;\n                final double rHH     = cRH - (cRH - resultHigh);\n                final double rHL     = resultHigh - rHH;\n                final double tmpLow  = rHL * d2pLow - (((tmpHigh - rHH * d2pHigh) - rHL * d2pHigh) - rHH * d2pLow);\n                resultHigh = tmpHigh;\n                resultLow  = resultLow * d2p + tmpLow;\n            }\n\n            // accurate squaring d^(2(p+1)) = d^(2p) * d^(2p) using Veltkamp TwoProduct algorithm\n            // beware the following expressions must NOT be simplified, they rely on floating point arithmetic properties\n            final double tmpHigh = d2pHigh * d2p;\n            final double cD2pH   = splitFactor * d2pHigh;\n            final double d2pHH   = cD2pH - (cD2pH - d2pHigh);\n            final double d2pHL   = d2pHigh - d2pHH;\n            final double tmpLow  = d2pHL * d2pLow - (((tmpHigh - d2pHH * d2pHigh) - d2pHL * d2pHigh) - d2pHH * d2pLow);\n            final double cTmpH   = splitFactor * tmpHigh;\n            d2pHigh = cTmpH - (cTmpH - tmpHigh);\n            d2pLow  = d2pLow * d2p + tmpLow + (tmpHigh - d2pHigh);\n            d2p     = d2pHigh + d2pLow;\n\n            e = e >> 1;\n\n        }\n\n        return resultHigh + resultLow;\n\n    }\n",
+        "begin_line": 1611,
+        "end_line": 1668,
+        "comment": "\n     * Raise a double to an int power.\n     *\n     * @param d Number to raise.\n     * @param e Exponent.\n     * @return d<sup>e</sup>\n     * @since 3.1\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1667
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compileLowerIndirection#306",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compileLowerIndirection(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler, org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    private static int[] compileLowerIndirection(final int parameters, final int order,\n                                              final DSCompiler valueCompiler,\n                                              final DSCompiler derivativeCompiler) {\n\n        if (parameters == 0 || order <= 1) {\n            return new int[] { 0 };\n        }\n\n        // this is an implementation of definition 6 in Dan Kalman's paper.\n        final int vSize = valueCompiler.lowerIndirection.length;\n        final int dSize = derivativeCompiler.lowerIndirection.length;\n        final int[] lowerIndirection = new int[vSize + dSize];\n        System.arraycopy(valueCompiler.lowerIndirection, 0, lowerIndirection, 0, vSize);\n        for (int i = 0; i < dSize; ++i) {\n            lowerIndirection[vSize + i] = valueCompiler.getSize() + derivativeCompiler.lowerIndirection[i];\n        }\n\n        return lowerIndirection;\n\n    }\n",
+        "begin_line": 306,
+        "end_line": 325,
+        "comment": " Compile the lower derivatives indirection array.\n     * <p>\n     * This indirection array contains the indices of all elements\n     * except derivatives for last derivation order.\n     * </p>\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @param derivativeCompiler compiler for the derivative part\n     * @return lower derivatives indirection array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1078
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compileMultiplicationIndirection#340",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compileMultiplicationIndirection(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler, org.apache.commons.math3.analysis.differentiation.DSCompiler, int[])",
+        "snippet": "    private static int[][][] compileMultiplicationIndirection(final int parameters, final int order,\n                                                           final DSCompiler valueCompiler,\n                                                           final DSCompiler derivativeCompiler,\n                                                           final int[] lowerIndirection) {\n\n        if ((parameters == 0) || (order == 0)) {\n            return new int[][][] { { { 1, 0, 0 } } };\n        }\n\n        // this is an implementation of definition 3 in Dan Kalman's paper.\n        final int vSize = valueCompiler.multIndirection.length;\n        final int dSize = derivativeCompiler.multIndirection.length;\n        final int[][][] multIndirection = new int[vSize + dSize][][];\n\n        System.arraycopy(valueCompiler.multIndirection, 0, multIndirection, 0, vSize);\n\n        for (int i = 0; i < dSize; ++i) {\n            final int[][] dRow = derivativeCompiler.multIndirection[i];\n            List<int[]> row = new ArrayList<int[]>();\n            for (int j = 0; j < dRow.length; ++j) {\n                row.add(new int[] { dRow[j][0], lowerIndirection[dRow[j][1]], vSize + dRow[j][2] });\n                row.add(new int[] { dRow[j][0], vSize + dRow[j][1], lowerIndirection[dRow[j][2]] });\n            }\n\n            // combine terms with similar derivation orders\n            final List<int[]> combined = new ArrayList<int[]>(row.size());\n            for (int j = 0; j < row.size(); ++j) {\n                final int[] termJ = row.get(j);\n                if (termJ[0] > 0) {\n                    for (int k = j + 1; k < row.size(); ++k) {\n                        final int[] termK = row.get(k);\n                        if (termJ[1] == termK[1] && termJ[2] == termK[2]) {\n                            // combine termJ and termK\n                            termJ[0] += termK[0];\n                            // make sure we will skip termK later on in the outer loop\n                            termK[0] = 0;\n                        }\n                    }\n                    combined.add(termJ);\n                }\n            }\n\n            multIndirection[vSize + i] = combined.toArray(new int[combined.size()][]);\n\n        }\n\n        return multIndirection;\n\n    }\n",
+        "begin_line": 340,
+        "end_line": 388,
+        "comment": " Compile the multiplication indirection array.\n     * <p>\n     * This indirection array contains the indices of all pairs of elements\n     * involved when computing a multiplication. This allows a straightforward\n     * loop-based multiplication (see {@link #multiply(double[], int, double[], int, double[], int)}).\n     * </p>\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @param derivativeCompiler compiler for the derivative part\n     * @param lowerIndirection lower derivatives indirection array\n     * @return multiplication indirection array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1078
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compileCompositionIndirection#404",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compileCompositionIndirection(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler, org.apache.commons.math3.analysis.differentiation.DSCompiler, int[][], int[][])",
+        "snippet": "    private static int[][][] compileCompositionIndirection(final int parameters, final int order,\n                                                        final DSCompiler valueCompiler,\n                                                        final DSCompiler derivativeCompiler,\n                                                        final int[][] sizes,\n                                                        final int[][] derivativesIndirection) {\n\n        if ((parameters == 0) || (order == 0)) {\n            return new int[][][] { { { 1, 0 } } };\n        }\n\n        final int vSize = valueCompiler.compIndirection.length;\n        final int dSize = derivativeCompiler.compIndirection.length;\n        final int[][][] compIndirection = new int[vSize + dSize][][];\n\n        // the composition rules from the value part can be reused as is\n        System.arraycopy(valueCompiler.compIndirection, 0, compIndirection, 0, vSize);\n\n        // the composition rules for the derivative part are deduced by\n        // differentiation the rules from the underlying compiler once\n        // with respect to the parameter this compiler handles and the\n        // underlying one did not handle\n        for (int i = 0; i < dSize; ++i) {\n            List<int[]> row = new ArrayList<int[]>();\n            for (int[] term : derivativeCompiler.compIndirection[i]) {\n\n                // handle term p * f_k(g(x)) * g_l1(x) * g_l2(x) * ... * g_lp(x)\n\n                // derive the first factor in the term: f_k with respect to new parameter\n                int[] derivedTermF = new int[term.length + 1];\n                derivedTermF[0] = term[0];     // p\n                derivedTermF[1] = term[1] + 1; // f_(k+1)\n                int[] orders = new int[parameters];\n                orders[parameters - 1] = 1;\n                derivedTermF[term.length] = getPartialDerivativeIndex(parameters, order, sizes, orders);  // g_1\n                for (int j = 2; j < term.length; ++j) {\n                    // convert the indices as the mapping for the current order\n                    // is different from the mapping with one less order\n                    derivedTermF[j] = convertIndex(term[j], parameters,\n                                                   derivativeCompiler.derivativesIndirection,\n                                                   parameters, order, sizes);\n                }\n                Arrays.sort(derivedTermF, 2, derivedTermF.length);\n                row.add(derivedTermF);\n\n                // derive the various g_l\n                for (int l = 2; l < term.length; ++l) {\n                    int[] derivedTermG = new int[term.length];\n                    derivedTermG[0] = term[0];\n                    derivedTermG[1] = term[1];\n                    for (int j = 2; j < term.length; ++j) {\n                        // convert the indices as the mapping for the current order\n                        // is different from the mapping with one less order\n                        derivedTermG[j] = convertIndex(term[j], parameters,\n                                                       derivativeCompiler.derivativesIndirection,\n                                                       parameters, order, sizes);\n                        if (j == l) {\n                            // derive this term\n                            System.arraycopy(derivativesIndirection[derivedTermG[j]], 0, orders, 0, parameters);\n                            orders[parameters - 1]++;\n                            derivedTermG[j] = getPartialDerivativeIndex(parameters, order, sizes, orders);\n                        }\n                    }\n                    Arrays.sort(derivedTermG, 2, derivedTermG.length);\n                    row.add(derivedTermG);\n                }\n\n            }\n\n            // combine terms with similar derivation orders\n            final List<int[]> combined = new ArrayList<int[]>(row.size());\n            for (int j = 0; j < row.size(); ++j) {\n                final int[] termJ = row.get(j);\n                if (termJ[0] > 0) {\n                    for (int k = j + 1; k < row.size(); ++k) {\n                        final int[] termK = row.get(k);\n                        boolean equals = termJ.length == termK.length;\n                        for (int l = 1; equals && l < termJ.length; ++l) {\n                            equals &= termJ[l] == termK[l];\n                        }\n                        if (equals) {\n                            // combine termJ and termK\n                            termJ[0] += termK[0];\n                            // make sure we will skip termK later on in the outer loop\n                            termK[0] = 0;\n                        }\n                    }\n                    combined.add(termJ);\n                }\n            }\n\n            compIndirection[vSize + i] = combined.toArray(new int[combined.size()][]);\n\n        }\n\n        return compIndirection;\n\n    }\n",
+        "begin_line": 404,
+        "end_line": 500,
+        "comment": " Compile the function composition indirection array.\n     * <p>\n     * This indirection array contains the indices of all sets of elements\n     * involved when computing a composition. This allows a straightforward\n     * loop-based composition (see {@link #compose(double[], int, double[], double[], int)}).\n     * </p>\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @param derivativeCompiler compiler for the derivative part\n     * @param sizes sizes array\n     * @param derivativesIndirection derivatives indirection array\n     * @return multiplication indirection array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1078
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.convertIndex#600",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.convertIndex(int, int, int[][], int, int, int[][])",
+        "snippet": "    private static int convertIndex(final int index,\n                                    final int srcP, final int[][] srcDerivativesIndirection,\n                                    final int destP, final int destO, final int[][] destSizes) {\n        int[] orders = new int[destP];\n        System.arraycopy(srcDerivativesIndirection[index], 0, orders, 0, FastMath.min(srcP, destP));\n        return getPartialDerivativeIndex(destP, destO, destSizes, orders);\n    }\n",
+        "begin_line": 600,
+        "end_line": 606,
+        "comment": " Convert an index from one (parameters, order) structure to another.\n     * @param index index of a partial derivative in source derivative structure\n     * @param srcP number of free parameters in source derivative structure\n     * @param srcDerivativesIndirection derivatives indirection array for the source\n     * derivative structure\n     * @param destP number of free parameters in destination derivative structure\n     * @param destO derivation order in destination derivative structure\n     * @param destSizes sizes array for the destination derivative structure\n     * @return index of the partial derivative with the <em>same</em> characteristics\n     * in destination derivative structure\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1078
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.multiply#768",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.multiply(double[], int, double[], int, double[], int)",
+        "snippet": "    public void multiply(final double[] lhs, final int lhsOffset,\n                         final double[] rhs, final int rhsOffset,\n                         final double[] result, final int resultOffset) {\n        for (int i = 0; i < multIndirection.length; ++i) {\n            final int[][] mappingI = multIndirection[i];\n            double r = 0;\n            for (int j = 0; j < mappingI.length; ++j) {\n                r += mappingI[j][0] *\n                     lhs[lhsOffset + mappingI[j][1]] *\n                     rhs[rhsOffset + mappingI[j][2]];\n            }\n            result[resultOffset + i] = r;\n        }\n    }\n",
+        "begin_line": 768,
+        "end_line": 781,
+        "comment": " Perform multiplication of two derivative structures.\n     * @param lhs array holding left hand side of multiplication\n     * @param lhsOffset offset of the left hand side in its array\n     * @param rhs array right hand side of multiplication\n     * @param rhsOffset offset of the right hand side in its array\n     * @param result array where result must be stored (for\n     * multiplication the result array <em>cannot</em> be one of\n     * the input arrays)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1054
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compose#1710",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compose(double[], int, double[], double[], int)",
+        "snippet": "    public void compose(final double[] operand, final int operandOffset, final double[] f,\n                        final double[] result, final int resultOffset) {\n        for (int i = 0; i < compIndirection.length; ++i) {\n            final int[][] mappingI = compIndirection[i];\n            double r = 0;\n            for (int j = 0; j < mappingI.length; ++j) {\n                final int[] mappingIJ = mappingI[j];\n                double product = mappingIJ[0] * f[mappingIJ[1]];\n                for (int k = 2; k < mappingIJ.length; ++k) {\n                    product *= operand[operandOffset + mappingIJ[k]];\n                }\n                r += product;\n            }\n            result[resultOffset + i] = r;\n        }\n    }\n",
+        "begin_line": 1710,
+        "end_line": 1725,
+        "comment": " Compute composition of a derivative structure by a function.\n     * @param operand array holding the operand\n     * @param operandOffset offset of the operand in its array\n     * @param f array of value and derivatives of the function at\n     * the current point (i.e. at {@code operand[operandOffset]}).\n     * @param result array where result must be stored (for\n     * composition the result array <em>cannot</em> be the input\n     * array)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.1015
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.add#734",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.add(double[], int, double[], int, double[], int)",
+        "snippet": "    public void add(final double[] lhs, final int lhsOffset,\n                    final double[] rhs, final int rhsOffset,\n                    final double[] result, final int resultOffset) {\n        for (int i = 0; i < getSize(); ++i) {\n            result[resultOffset + i] = lhs[lhsOffset + i] + rhs[rhsOffset + i];\n        }\n    }\n",
+        "begin_line": 734,
+        "end_line": 740,
+        "comment": " Perform addition of two derivative structures.\n     * @param lhs array holding left hand side of addition\n     * @param lhsOffset offset of the left hand side in its array\n     * @param rhs array right hand side of addition\n     * @param rhsOffset offset of the right hand side in its array\n     * @param result array where result must be stored (it may be\n     * one of the input arrays)\n     * @param resultOffset offset of the result in its array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0945
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.sqrt#378",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.sqrt(double)",
+        "snippet": "    public static double sqrt(final double a) {\n        return Math.sqrt(a);\n    }\n",
+        "begin_line": 378,
+        "end_line": 380,
+        "comment": " Compute the square root of a number.\n     * <p><b>Note:</b> this implementation currently delegates to {@link Math#sqrt}\n     * @param a number on which evaluation is done\n     * @return square root of a\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0898
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.checkCompatibility#1752",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.checkCompatibility(org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    public void checkCompatibility(final DSCompiler compiler)\n            throws DimensionMismatchException {\n        if (parameters != compiler.parameters) {\n            throw new DimensionMismatchException(parameters, compiler.parameters);\n        }\n        if (order != compiler.order) {\n            throw new DimensionMismatchException(order, compiler.order);\n        }\n    }\n",
+        "begin_line": 1752,
+        "end_line": 1760,
+        "comment": " Check rules set compatibility.\n     * @param compiler other compiler to check against instance\n     * @exception DimensionMismatchException if number of free parameters or orders are inconsistent\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0822
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.getValue#230",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.getValue()",
+        "snippet": "    public double getValue() {\n        return data[0];\n    }\n",
+        "begin_line": 230,
+        "end_line": 232,
+        "comment": " Get the value part of the derivative structure.\n     * @return value part of the derivative structure\n     * @see #getPartialDerivative(int...)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0816
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.DerivativeStructure#108",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.DerivativeStructure(int, int, int, double)",
+        "snippet": "    public DerivativeStructure(final int parameters, final int order,\n                               final int index, final double value)\n        throws NumberIsTooLargeException {\n        this(parameters, order, value);\n\n        if (index >= parameters) {\n            throw new NumberIsTooLargeException(index, parameters, false);\n        }\n\n        if (order > 0) {\n            // the derivative of the variable with respect to itself is 1.\n            data[DSCompiler.getCompiler(index, order).getSize()] = 1.0;\n        }\n\n    }\n",
+        "begin_line": 108,
+        "end_line": 122,
+        "comment": " Build an instance representing a variable.\n     * <p>Instances built using this constructor are considered\n     * to be the free variables with respect to which differentials\n     * are computed. As such, their differential with respect to\n     * themselves is +1.</p>\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param index index of the variable (from 0 to {@code parameters - 1})\n     * @param value value of the variable\n     * @exception NumberIsTooLargeException if {@code index >= parameters}.\n     * @see #DerivativeStructure(int, int, double)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0679
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.DerivativeStructure#91",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.DerivativeStructure(int, int, double)",
+        "snippet": "    public DerivativeStructure(final int parameters, final int order, final double value) {\n        this(parameters, order);\n        this.data[0] = value;\n    }\n",
+        "begin_line": 91,
+        "end_line": 94,
+        "comment": " Build an instance representing a constant value.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param value value of the constant\n     * @see #DerivativeStructure(int, int, int, double)\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.getCompiler#185",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.getCompiler(int, int)",
+        "snippet": "    public static DSCompiler getCompiler(int parameters, int order) {\n\n        // get the cached compilers\n        final DSCompiler[][] cache = compilers.get();\n        if (cache != null && cache.length > parameters && cache[parameters].length > order) {\n            if (cache[parameters][order] != null) {\n                // the compiler has already been created\n                return cache[parameters][order];\n            }\n        }\n\n        // we need to create more compilers\n        final int maxParameters = FastMath.max(parameters, cache == null ? 0 : cache.length);\n        final int maxOrder      = FastMath.max(order,     cache == null ? 0 : cache[0].length);\n        final DSCompiler[][] newCache = new DSCompiler[maxParameters + 1][maxOrder + 1];\n\n        if (cache != null) {\n            // preserve the already created compilers\n            for (int i = 0; i < cache.length; ++i) {\n                System.arraycopy(cache[i], 0, newCache[i], 0, cache[i].length);\n            }\n        }\n\n        // create the array in increasing diagonal order\n        for (int diag = 0; diag <= parameters + order; ++diag) {\n            for (int o = FastMath.max(0, diag - parameters); o <= FastMath.min(order, diag); ++o) {\n                final int p = diag - o;\n                if (newCache[p][o] == null) {\n                    final DSCompiler valueCompiler      = (p == 0) ? null : newCache[p - 1][o];\n                    final DSCompiler derivativeCompiler = (o == 0) ? null : newCache[p][o - 1];\n                    newCache[p][o] = new DSCompiler(p, o, valueCompiler, derivativeCompiler);\n                }\n            }\n        }\n\n        // atomically reset the cached compilers array\n        compilers.compareAndSet(cache, newCache);\n\n        return newCache[parameters][order];\n\n    }\n",
+        "begin_line": 185,
+        "end_line": 225,
+        "comment": " Get the compiler for number of free parameters and order.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @return cached rules set\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.DerivativeStructure#72",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.DerivativeStructure(org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    private DerivativeStructure(final DSCompiler compiler) {\n        this.compiler = compiler;\n        this.data     = new double[compiler.getSize()];\n    }\n",
+        "begin_line": 72,
+        "end_line": 75,
+        "comment": " Build an instance with all values and derivatives set to 0.\n     * @param compiler compiler to use for computation\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.067
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DerivativeStructure.DerivativeStructure#81",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DerivativeStructure.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DerivativeStructure.DerivativeStructure(int, int)",
+        "snippet": "    public DerivativeStructure(final int parameters, final int order) {\n        this(DSCompiler.getCompiler(parameters, order));\n    }\n",
+        "begin_line": 81,
+        "end_line": 83,
+        "comment": " Build an instance with all values and derivatives set to 0.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.067
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compileSizes#233",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compileSizes(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    private static int[][] compileSizes(final int parameters, final int order,\n                                        final DSCompiler valueCompiler) {\n\n        final int[][] sizes = new int[parameters + 1][order + 1];\n        if (parameters == 0) {\n            Arrays.fill(sizes[0], 1);\n        } else {\n            System.arraycopy(valueCompiler.sizes, 0, sizes, 0, parameters);\n            sizes[parameters][0] = 1;\n            for (int i = 0; i < order; ++i) {\n                sizes[parameters][i + 1] = sizes[parameters][i] + sizes[parameters - 1][i + 1];\n            }\n        }\n\n        return sizes;\n\n    }\n",
+        "begin_line": 233,
+        "end_line": 249,
+        "comment": " Compile the sizes array.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @return sizes array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0662
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.compileDerivativesIndirection#258",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.compileDerivativesIndirection(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler, org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    private static int[][] compileDerivativesIndirection(final int parameters, final int order,\n                                                      final DSCompiler valueCompiler,\n                                                      final DSCompiler derivativeCompiler) {\n\n        if (parameters == 0 || order == 0) {\n            return new int[1][parameters];\n        }\n\n        final int vSize = valueCompiler.derivativesIndirection.length;\n        final int dSize = derivativeCompiler.derivativesIndirection.length;\n        final int[][] derivativesIndirection = new int[vSize + dSize][parameters];\n\n        // set up the indices for the value part\n        for (int i = 0; i < vSize; ++i) {\n            // copy the first indices, the last one remaining set to 0\n            System.arraycopy(valueCompiler.derivativesIndirection[i], 0,\n                             derivativesIndirection[i], 0,\n                             parameters - 1);\n        }\n\n        // set up the indices for the derivative part\n        for (int i = 0; i < dSize; ++i) {\n\n            // copy the indices\n            System.arraycopy(derivativeCompiler.derivativesIndirection[i], 0,\n                             derivativesIndirection[vSize + i], 0,\n                             parameters);\n\n            // increment the derivation order for the last parameter\n            derivativesIndirection[vSize + i][parameters - 1]++;\n\n        }\n\n        return derivativesIndirection;\n\n    }\n",
+        "begin_line": 258,
+        "end_line": 293,
+        "comment": " Compile the derivatives indirection array.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @param derivativeCompiler compiler for the derivative part\n     * @return derivatives indirection array\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0662
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.getPartialDerivativeIndex#556",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.getPartialDerivativeIndex(int, int, int[][], int...)",
+        "snippet": "    private static int getPartialDerivativeIndex(final int parameters, final int order,\n                                                 final int[][] sizes, final int ... orders)\n        throws NumberIsTooLargeException {\n\n        // the value is obtained by diving into the recursive Dan Kalman's structure\n        // this is theorem 2 of his paper, with recursion replaced by iteration\n        int index     = 0;\n        int m         = order;\n        int ordersSum = 0;\n        for (int i = parameters - 1; i >= 0; --i) {\n\n            // derivative order for current free parameter\n            int derivativeOrder = orders[i];\n\n            // safety check\n            ordersSum += derivativeOrder;\n            if (ordersSum > order) {\n                throw new NumberIsTooLargeException(ordersSum, order, true);\n            }\n\n            while (derivativeOrder-- > 0) {\n                // as long as we differentiate according to current free parameter,\n                // we have to skip the value part and dive into the derivative part\n                // so we add the size of the value part to the base index\n                index += sizes[i][m--];\n            }\n\n        }\n\n        return index;\n\n    }\n",
+        "begin_line": 556,
+        "end_line": 587,
+        "comment": " Get the index of a partial derivative in an array.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param sizes sizes array\n     * @param orders derivation orders with respect to each parameter\n     * (the lenght of this array must match the number of parameters)\n     * @return index of the partial derivative\n     * @exception NumberIsTooLargeException if sum of derivation orders is larger\n     * than the instance limits\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0662
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.DSCompiler#158",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.DSCompiler(int, int, org.apache.commons.math3.analysis.differentiation.DSCompiler, org.apache.commons.math3.analysis.differentiation.DSCompiler)",
+        "snippet": "    private DSCompiler(final int parameters, final int order,\n                       final DSCompiler valueCompiler, final DSCompiler derivativeCompiler) {\n\n        this.parameters = parameters;\n        this.order      = order;\n        this.sizes      = compileSizes(parameters, order, valueCompiler);\n        this.derivativesIndirection =\n                compileDerivativesIndirection(parameters, order,\n                                              valueCompiler, derivativeCompiler);\n        this.lowerIndirection =\n                compileLowerIndirection(parameters, order,\n                                        valueCompiler, derivativeCompiler);\n        this.multIndirection =\n                compileMultiplicationIndirection(parameters, order,\n                                                 valueCompiler, derivativeCompiler, lowerIndirection);\n        this.compIndirection =\n                compileCompositionIndirection(parameters, order,\n                                              valueCompiler, derivativeCompiler,\n                                              sizes, derivativesIndirection);\n\n    }\n",
+        "begin_line": 158,
+        "end_line": 178,
+        "comment": " Private constructor, reserved for the factory method {@link #getCompiler(int, int)}.\n     * @param parameters number of free parameters\n     * @param order derivation order\n     * @param valueCompiler compiler for the value part\n     * @param derivativeCompiler compiler for the derivative part\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0659
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "DSCompiler.getSize#641",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/analysis/differentiation/DSCompiler.java",
+        "class_name": "org.apache.commons.math3.analysis.differentiation.DSCompiler",
+        "signature": "org.apache.commons.math3.analysis.differentiation.DSCompiler.getSize()",
+        "snippet": "    public int getSize() {\n        return sizes[parameters][order];\n    }\n",
+        "begin_line": 641,
+        "end_line": 643,
+        "comment": " Get the array size required for holding partial derivatives data.\n     * <p>\n     * This number includes the single 0 order derivative element, which is\n     * guaranteed to be stored in the first element of the array.\n     * </p>\n     * @return array size required for holding partial derivatives data\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0659
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.max#3488",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.max(int, int)",
+        "snippet": "    public static int max(final int a, final int b) {\n        return (a <= b) ? b : a;\n    }\n",
+        "begin_line": 3488,
+        "end_line": 3490,
+        "comment": " Compute the maximum of two values\n     * @param a first value\n     * @param b second value\n     * @return b if a is lesser or equal to b, a otherwise\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.0657
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "FastMath.min#3420",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math3/util/FastMath.java",
+        "class_name": "org.apache.commons.math3.util.FastMath",
+        "signature": "org.apache.commons.math3.util.FastMath.min(int, int)",
+        "snippet": "    public static int min(final int a, final int b) {\n        return (a <= b) ? a : b;\n    }\n",
+        "begin_line": 3420,
+        "end_line": 3422,
+        "comment": " Compute the minimum of two values\n     * @param a first value\n     * @param b second value\n     * @return a if a is lesser or equal to b, b otherwise\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.065
+        },
+        "num_failing_tests": 1
+    }
+]

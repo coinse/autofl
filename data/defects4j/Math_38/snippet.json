@@ -1,0 +1,863 @@
+[
+    {
+        "name": "BOBYQAOptimizer.PathIsExploredException#2478",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.PathIsExploredException.PathIsExploredException()",
+        "snippet": "        PathIsExploredException() {\n            super(PATH_IS_EXPLORED + \" \" + BOBYQAOptimizer.caller(3));\n        }\n",
+        "begin_line": 2478,
+        "end_line": 2480,
+        "comment": "",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.prelim#1582",
+        "is_bug": true,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.prelim(double[], double[])",
+        "snippet": "    private void prelim(double[] lowerBound,\n                        double[] upperBound) {\n        printMethod(); // XXX\n\n        final int n = currentBest.getDimension();\n        final int npt = numberOfInterpolationPoints;\n        final int ndim = bMatrix.getRowDimension();\n\n        final double rhosq = initialTrustRegionRadius * initialTrustRegionRadius;\n        final double recip = 1d / rhosq;\n        final int np = n + 1;\n\n        // Set XBASE to the initial vector of variables, and set the initial\n        // elements of XPT, BMAT, HQ, PQ and ZMAT to zero.\n\n        for (int j = 0; j < n; j++) {\n            originShift.setEntry(j, currentBest.getEntry(j));\n            for (int k = 0; k < npt; k++) {\n                interpolationPoints.setEntry(k, j, ZERO);\n            }\n            for (int i = 0; i < ndim; i++) {\n                bMatrix.setEntry(i, j, ZERO);\n            }\n        }\n        for (int i = 0, max = n * np / 2; i < max; i++) {\n            modelSecondDerivativesValues.setEntry(i, ZERO);\n        }\n        for (int k = 0; k < npt; k++) {\n            modelSecondDerivativesParameters.setEntry(k, ZERO);\n            for (int j = 0, max = npt - np; j < max; j++) {\n                zMatrix.setEntry(k, j, ZERO);\n            }\n        }\n\n        // Begin the initialization procedure. NF becomes one more than the number\n        // of function values so far. The coordinates of the displacement of the\n        // next initial interpolation point from XBASE are set in XPT(NF+1,.).\n\n        int ipt = 0;\n        int jpt = 0;\n        double fbeg = Double.NaN;\n        do {\n            final int nfm = getEvaluations();\n            final int nfx = nfm - n;\n            final int nfmm = nfm - 1;\n            final int nfxm = nfx - 1;\n            double stepa = 0;\n            double stepb = 0;\n            if (nfm <= 2 * n) {\n                if (nfm >= 1 &&\n                    nfm <= n) {\n                    stepa = initialTrustRegionRadius;\n                    if (upperDifference.getEntry(nfmm) == ZERO) {\n                        stepa = -stepa;\n                        throw new PathIsExploredException(); // XXX\n                    }\n                    interpolationPoints.setEntry(nfm, nfmm, stepa);\n                } else if (nfm > n) {\n                    stepa = interpolationPoints.getEntry(nfx, nfxm);\n                    stepb = -initialTrustRegionRadius;\n                    if (lowerDifference.getEntry(nfxm) == ZERO) {\n                        stepb = Math.min(TWO * initialTrustRegionRadius, upperDifference.getEntry(nfxm));\n                        throw new PathIsExploredException(); // XXX\n                    }\n                    if (upperDifference.getEntry(nfxm) == ZERO) {\n                        stepb = Math.max(-TWO * initialTrustRegionRadius, lowerDifference.getEntry(nfxm));\n                        throw new PathIsExploredException(); // XXX\n                    }\n                    interpolationPoints.setEntry(nfm, nfxm, stepb);\n                }\n            } else {\n                final int tmp1 = (nfm - np) / n;\n                jpt = nfm - tmp1 * n - n;\n                ipt = jpt + tmp1;\n                if (ipt > n) {\n                    final int tmp2 = jpt;\n                    jpt = ipt - n;\n                    ipt = tmp2;\n                    throw new PathIsExploredException(); // XXX\n                }\n                final int iptMinus1 = ipt;\n                final int jptMinus1 = jpt;\n                interpolationPoints.setEntry(nfm, iptMinus1, interpolationPoints.getEntry(ipt, iptMinus1));\n                interpolationPoints.setEntry(nfm, jptMinus1, interpolationPoints.getEntry(jpt, jptMinus1));\n            }\n\n            // Calculate the next value of F. The least function value so far and\n            // its index are required.\n\n            for (int j = 0; j < n; j++) {\n                currentBest.setEntry(j, Math.min(Math.max(lowerBound[j],\n                                                          originShift.getEntry(j) + interpolationPoints.getEntry(nfm, j)),\n                                                 upperBound[j]));\n                if (interpolationPoints.getEntry(nfm, j) == lowerDifference.getEntry(j)) {\n                    currentBest.setEntry(j, lowerBound[j]);\n                }\n                if (interpolationPoints.getEntry(nfm, j) == upperDifference.getEntry(j)) {\n                    currentBest.setEntry(j, upperBound[j]);\n                }\n            }\n\n            final double objectiveValue = computeObjectiveValue(currentBest.toArray());\n            final double f = isMinimize ? objectiveValue : -objectiveValue;\n            final int numEval = getEvaluations(); // nfm + 1\n            fAtInterpolationPoints.setEntry(nfm, f);\n\n            if (numEval == 1) {\n                fbeg = f;\n                trustRegionCenterInterpolationPointIndex = 0;\n            } else if (f < fAtInterpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex)) {\n                trustRegionCenterInterpolationPointIndex = nfm;\n            }\n\n            // Set the nonzero initial elements of BMAT and the quadratic model in the\n            // cases when NF is at most 2*N+1. If NF exceeds N+1, then the positions\n            // of the NF-th and (NF-N)-th interpolation points may be switched, in\n            // order that the function value at the first of them contributes to the\n            // off-diagonal second derivative terms of the initial quadratic model.\n\n            if (numEval <= 2 * n + 1) {\n                if (numEval >= 2 &&\n                    numEval <= n + 1) {\n                    gradientAtTrustRegionCenter.setEntry(nfmm, (f - fbeg) / stepa);\n                    if (npt < numEval + n) {\n                        final double oneOverStepA = ONE / stepa;\n                        bMatrix.setEntry(0, nfmm, -oneOverStepA);\n                        bMatrix.setEntry(nfm, nfmm, oneOverStepA);\n                        bMatrix.setEntry(npt + nfmm, nfmm, -HALF * rhosq);\n                        throw new PathIsExploredException(); // XXX\n                    }\n                } else if (numEval >= n + 2) {\n                    final int ih = nfx * (nfx + 1) / 2 - 1;\n                    final double tmp = (f - fbeg) / stepb;\n                    final double diff = stepb - stepa;\n                    modelSecondDerivativesValues.setEntry(ih, TWO * (tmp - gradientAtTrustRegionCenter.getEntry(nfxm)) / diff);\n                    gradientAtTrustRegionCenter.setEntry(nfxm, (gradientAtTrustRegionCenter.getEntry(nfxm) * stepb - tmp * stepa) / diff);\n                    if (stepa * stepb < ZERO) {\n                        if (f < fAtInterpolationPoints.getEntry(nfm - n)) {\n                            fAtInterpolationPoints.setEntry(nfm, fAtInterpolationPoints.getEntry(nfm - n));\n                            fAtInterpolationPoints.setEntry(nfm - n, f);\n                            if (trustRegionCenterInterpolationPointIndex == nfm) {\n                                trustRegionCenterInterpolationPointIndex = nfm - n;\n                            }\n                            interpolationPoints.setEntry(nfm - n, nfxm, stepb);\n                            interpolationPoints.setEntry(nfm, nfxm, stepa);\n                        }\n                    }\n                    bMatrix.setEntry(0, nfxm, -(stepa + stepb) / (stepa * stepb));\n                    bMatrix.setEntry(nfm, nfxm, -HALF / interpolationPoints.getEntry(nfm - n, nfxm));\n                    bMatrix.setEntry(nfm - n, nfxm,\n                                  -bMatrix.getEntry(0, nfxm) - bMatrix.getEntry(nfm, nfxm));\n                    zMatrix.setEntry(0, nfxm, Math.sqrt(TWO) / (stepa * stepb));\n                    zMatrix.setEntry(nfm, nfxm, Math.sqrt(HALF) / rhosq);\n                    // zMatrix.setEntry(nfm, nfxm, Math.sqrt(HALF) * recip); // XXX \"testAckley\" and \"testDiffPow\" fail.\n                    zMatrix.setEntry(nfm - n, nfxm,\n                                  -zMatrix.getEntry(0, nfxm) - zMatrix.getEntry(nfm, nfxm));\n                }\n\n                // Set the off-diagonal second derivatives of the Lagrange functions and\n                // the initial quadratic model.\n\n            } else {\n                zMatrix.setEntry(0, nfxm, recip);\n                zMatrix.setEntry(nfm, nfxm, recip);\n                zMatrix.setEntry(ipt, nfxm, -recip);\n                zMatrix.setEntry(jpt, nfxm, -recip);\n\n                final int ih = ipt * (ipt - 1) / 2 + jpt - 1;\n                final double tmp = interpolationPoints.getEntry(nfm, ipt - 1) * interpolationPoints.getEntry(nfm, jpt - 1);\n                modelSecondDerivativesValues.setEntry(ih, (fbeg - fAtInterpolationPoints.getEntry(ipt) - fAtInterpolationPoints.getEntry(jpt) + f) / tmp);\n                throw new PathIsExploredException(); // XXX\n            }\n        } while (getEvaluations() < npt);\n    } // prelim\n",
+        "begin_line": 1582,
+        "end_line": 1755,
+        "comment": "\n     *     SUBROUTINE PRELIM sets the elements of XBASE, XPT, FVAL, GOPT, HQ, PQ,\n     *     BMAT and ZMAT for the first iteration, and it maintains the values of\n     *     NF and KOPT. The vector X is also changed by PRELIM.\n     *\n     *     The arguments N, NPT, X, XL, XU, RHOBEG, IPRINT and MAXFUN are the\n     *       same as the corresponding arguments in SUBROUTINE BOBYQA.\n     *     The arguments XBASE, XPT, FVAL, HQ, PQ, BMAT, ZMAT, NDIM, SL and SU\n     *       are the same as the corresponding arguments in BOBYQB, the elements\n     *       of SL and SU being set in BOBYQA.\n     *     GOPT is usually the gradient of the quadratic model at XOPT+XBASE, but\n     *       it is set by PRELIM to the gradient of the quadratic model at XBASE.\n     *       If XOPT is nonzero, BOBYQB will change it to its usual value later.\n     *     NF is maintaned as the number of calls of CALFUN so far.\n     *     KOPT will be such that the least calculated value of F so far is at\n     *       the point XPT(KOPT,.)+XBASE in the space of the variables.\n     *\n     * @param lowerBound Lower bounds.\n     * @param upperBound Upper bounds.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.caller#2453",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.caller(int)",
+        "snippet": "    private static String caller(int n) {\n        final Throwable t = new Throwable();\n        final StackTraceElement[] elements = t.getStackTrace();\n        final StackTraceElement e = elements[n];\n        return e.getMethodName() + \" (at line \" + e.getLineNumber() + \")\";\n    }\n",
+        "begin_line": 2453,
+        "end_line": 2458,
+        "comment": " XXX utility for figuring out call sequence.",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 1.0
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateSimpleBoundsOptimizer.optimize#89",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateSimpleBoundsOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer.optimize(int, FUNC, org.apache.commons.math.optimization.GoalType, double[], double[], double[])",
+        "snippet": "    public RealPointValuePair optimize(int maxEval, FUNC f, GoalType goalType,\n                                       double[] startPoint,\n                                       double[] lower, double[] upper) {\n        // Checks.\n        final int dim = startPoint.length;\n        if (lower != null) {\n            if (lower.length != dim) {\n                throw new DimensionMismatchException(lower.length, dim);\n            }\n            for (int i = 0; i < dim; i++) {\n                final double v = startPoint[i];\n                final double lo = lower[i];\n                if (v < lo) {\n                    throw new NumberIsTooSmallException(v, lo, true);\n                }\n            }\n        }\n        if (upper != null) {\n            if (upper.length != dim) {\n                throw new DimensionMismatchException(upper.length, dim);\n            }\n            for (int i = 0; i < dim; i++) {\n                final double v = startPoint[i];\n                final double hi = upper[i];\n                if (v > hi) {\n                    throw new NumberIsTooLargeException(v, hi, true);\n                }\n            }\n        }\n\n        // Initialization.\n        if (lower == null) {\n            lowerBound = new double[dim];\n            for (int i = 0; i < dim; i++) {\n                lowerBound[i] = Double.NEGATIVE_INFINITY;\n            }\n        } else {\n            lowerBound = lower.clone();\n        }\n        if (upper == null) {\n            upperBound = new double[dim];\n            for (int i = 0; i < dim; i++) {\n                upperBound[i] = Double.POSITIVE_INFINITY;\n            }\n        } else {\n            upperBound = upper.clone();\n        }\n\n        // Base class method performs the non bound-specific initializations.\n        return super.optimize(maxEval, f, goalType, startPoint);\n    }\n",
+        "begin_line": 89,
+        "end_line": 139,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.BaseMultivariateSimpleBoundsOptimizer": "\n     * Optimize an objective function.\n     *\n     * @param f Objective function.\n     * @param goalType Type of optimization goal: either\n     * {@link GoalType#MAXIMIZE} or {@link GoalType#MINIMIZE}.\n     * @param startPoint Start point for optimization.\n     * @param maxEval Maximum number of function evaluations.\n     * @param lowerBound Lower bound for each of the parameters.\n     * @param upperBound Upper bound for each of the parameters.\n     * @return the point/value pair giving the optimal value for objective\n     * function.\n     * @throws org.apache.commons.math.exception.DimensionMismatchException\n     * if the array sizes are wrong.\n     * @throws org.apache.commons.math.exception.TooManyEvaluationsException\n     * if the maximal number of evaluations is exceeded.\n     * @throws org.apache.commons.math.exception.NullArgumentException if\n     * {@code f}, {@code goalType} or {@code startPoint} is {@code null}.\n     * @throws org.apache.commons.math.exception.NumberIsTooSmallException if any\n     * of the initial values is less than its lower bound.\n     * @throws org.apache.commons.math.exception.NumberIsTooLargeException if any\n     * of the initial values is greater than its upper bound.\n     ",
+            "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer": null,
+            "org.apache.commons.math.optimization.BaseMultivariateOptimizer": null,
+            "org.apache.commons.math.optimization.BaseOptimizer": null
+        },
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.setup#2382",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.setup(double[], double[])",
+        "snippet": "    private void setup(double[] lowerBound,\n                       double[] upperBound) {\n        printMethod(); // XXX\n\n        double[] init = getStartPoint();\n        final int dimension = init.length;\n\n        // Check problem dimension.\n        if (dimension < MINIMUM_PROBLEM_DIMENSION) {\n            throw new NumberIsTooSmallException(dimension, MINIMUM_PROBLEM_DIMENSION, true);\n        }\n        // Check number of interpolation points.\n        final int[] nPointsInterval = { dimension + 2, (dimension + 2) * (dimension + 1) / 2 };\n        if (numberOfInterpolationPoints < nPointsInterval[0] ||\n            numberOfInterpolationPoints > nPointsInterval[1]) {\n            throw new OutOfRangeException(LocalizedFormats.NUMBER_OF_INTERPOLATION_POINTS,\n                                          numberOfInterpolationPoints,\n                                          nPointsInterval[0],\n                                          nPointsInterval[1]);\n        }\n\n        // Initialize bound differences.\n        boundDifference = new double[dimension];\n\n        double requiredMinDiff = 2 * initialTrustRegionRadius;\n        double minDiff = Double.POSITIVE_INFINITY;\n        for (int i = 0; i < dimension; i++) {\n            boundDifference[i] = upperBound[i] - lowerBound[i];\n            minDiff = Math.min(minDiff, boundDifference[i]);\n        }\n        if (minDiff < requiredMinDiff) {\n            initialTrustRegionRadius = minDiff / 3.0;\n        }\n\n        // Initialize the data structures used by the \"bobyqa\" method.\n        bMatrix = new Array2DRowRealMatrix(dimension + numberOfInterpolationPoints,\n                                           dimension);\n        zMatrix = new Array2DRowRealMatrix(numberOfInterpolationPoints,\n                                           numberOfInterpolationPoints - dimension - 1);\n        interpolationPoints = new Array2DRowRealMatrix(numberOfInterpolationPoints,\n                                                       dimension);\n        originShift = new ArrayRealVector(dimension);\n        fAtInterpolationPoints = new ArrayRealVector(numberOfInterpolationPoints);\n        trustRegionCenterOffset = new ArrayRealVector(dimension);\n        gradientAtTrustRegionCenter = new ArrayRealVector(dimension);\n        lowerDifference = new ArrayRealVector(dimension);\n        upperDifference = new ArrayRealVector(dimension);\n        modelSecondDerivativesParameters = new ArrayRealVector(numberOfInterpolationPoints);\n        newPoint = new ArrayRealVector(dimension);\n        alternativeNewPoint = new ArrayRealVector(dimension);\n        trialStepPoint = new ArrayRealVector(dimension);\n        lagrangeValuesAtNewPoint = new ArrayRealVector(dimension + numberOfInterpolationPoints);\n        modelSecondDerivativesValues = new ArrayRealVector(dimension * (dimension + 1) / 2);\n    }\n",
+        "begin_line": 2382,
+        "end_line": 2435,
+        "comment": "\n     * Performs validity checks.\n     *\n     * @param lowerBound Lower bounds (constraints) of the objective variables.\n     * @param upperBound Upperer bounds (constraints) of the objective variables.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.5773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealPointValuePair.RealPointValuePair#44",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/RealPointValuePair.java",
+        "class_name": "org.apache.commons.math.optimization.RealPointValuePair",
+        "signature": "org.apache.commons.math.optimization.RealPointValuePair.RealPointValuePair(double[], double)",
+        "snippet": "    public RealPointValuePair(final double[] point, final double value) {\n        this.point = (point == null) ? null : point.clone();\n        this.value = value;\n    }\n",
+        "begin_line": 44,
+        "end_line": 47,
+        "comment": " Build a point/objective function value pair.\n     * @param point point coordinates (the built instance will store\n     * a copy of the array, not the array passed as argument)\n     * @param value value of an objective function at the point\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2773
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.getCount#108",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.getCount()",
+        "snippet": "    public int getCount() {\n        return count;\n    }\n",
+        "begin_line": 108,
+        "end_line": 110,
+        "comment": "\n     * Gets the current count.\n     *\n     * @return the current count.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.incrementCount#149",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.incrementCount()",
+        "snippet": "    public void incrementCount() {\n        if (++count > maximalCount) {\n            maxCountCallback.trigger(maximalCount);\n        }\n    }\n",
+        "begin_line": 149,
+        "end_line": 153,
+        "comment": "\n     * Adds one to the current iteration count.\n     * At counter exhaustion, this method will call the\n     * {@link MaxCountExceededCallback#trigger(int) trigger} method of the\n     * callback object passed to the\n     * {@link #Incrementor(int,MaxCountExceededCallback) constructor}.\n     * If not explictly set, a default callback is used that will throw\n     * a {@code MaxCountExceededException}.\n     *\n     * @throws MaxCountExceededException at counter exhaustion, unless a\n     * custom {@link MaxCountExceededCallback callback} has been set at\n     * construction.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "CompositeFormat.getDefaultNumberFormat#53",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/CompositeFormat.java",
+        "class_name": "org.apache.commons.math.util.CompositeFormat",
+        "signature": "org.apache.commons.math.util.CompositeFormat.getDefaultNumberFormat(java.util.Locale)",
+        "snippet": "    public static NumberFormat getDefaultNumberFormat(final Locale locale) {\n        final NumberFormat nf = NumberFormat.getInstance(locale);\n        nf.setMaximumFractionDigits(2);\n        return nf;\n    }\n",
+        "begin_line": 53,
+        "end_line": 57,
+        "comment": "\n     * Create a default number format.  The default number format is based on\n     * {@link NumberFormat#getInstance(java.util.Locale)} with the only\n     * customizing that the maximum number of fraction digits is set to 2.\n     * @param locale the specific locale used by the format.\n     * @return the default number format specific to the given locale.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.getEvaluations#75",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.getEvaluations()",
+        "snippet": "    public int getEvaluations() {\n        return evaluations.getCount();\n    }\n",
+        "begin_line": 75,
+        "end_line": 77,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.BaseMultivariateOptimizer": null,
+            "org.apache.commons.math.optimization.BaseOptimizer": "\n     * Get the number of evaluations of the objective function.\n     * The number of evaluations corresponds to the last call to the\n     * {@code optimize} method. It is 0 if the method has not been\n     * called yet.\n     *\n     * @return the number of evaluations of the objective function.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.computeObjectiveValue#92",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.computeObjectiveValue(double[])",
+        "snippet": "    protected double computeObjectiveValue(double[] point) {\n        try {\n            evaluations.incrementCount();\n        } catch (MaxCountExceededException e) {\n            throw new TooManyEvaluationsException(e.getMax());\n        }\n        return function.value(point);\n    }\n",
+        "begin_line": 92,
+        "end_line": 99,
+        "comment": "\n     * Compute the objective function value.\n     *\n     * @param point Point at which the objective function must be evaluated.\n     * @return the objective function value at the specified point.\n     * @throws TooManyEvaluationsException if the maximal number of\n     * evaluations is exceeded.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.getGoalType#131",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.getGoalType()",
+        "snippet": "    public GoalType getGoalType() {\n        return goal;\n    }\n",
+        "begin_line": 131,
+        "end_line": 133,
+        "comment": "\n     * @return the optimization type.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.doOptimize#233",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.doOptimize()",
+        "snippet": "    @Override\n    protected RealPointValuePair doOptimize() {\n        final double[] lowerBound = getLowerBound();\n        final double[] upperBound = getUpperBound();\n\n        // Validity checks.\n        setup(lowerBound, upperBound);\n\n        isMinimize = (getGoalType() == GoalType.MINIMIZE);\n        currentBest = new ArrayRealVector(getStartPoint());\n\n        final double value = bobyqa(lowerBound, upperBound);\n\n        return new RealPointValuePair(currentBest.getDataRef(),\n                                      isMinimize ? value : -value);\n    }\n",
+        "begin_line": 233,
+        "end_line": 248,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer": null,
+            "org.apache.commons.math.optimization.MultivariateOptimizer": null,
+            "org.apache.commons.math.optimization.BaseMultivariateSimpleBoundsOptimizer": null,
+            "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer": "\n     * Perform the bulk of the optimization algorithm.\n     *\n     * @return the point/value pair giving the optimal value for the\n     * objective function.\n     ",
+            "org.apache.commons.math.optimization.BaseMultivariateOptimizer": null,
+            "org.apache.commons.math.optimization.BaseOptimizer": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.bobyqa#285",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.bobyqa(double[], double[])",
+        "snippet": "    private double bobyqa(double[] lowerBound,\n                          double[] upperBound) {\n        printMethod(); // XXX\n\n        final int n = currentBest.getDimension();\n\n        // Return if there is insufficient space between the bounds. Modify the\n        // initial X if necessary in order to avoid conflicts between the bounds\n        // and the construction of the first quadratic model. The lower and upper\n        // bounds on moves from the updated X are set now, in the ISL and ISU\n        // partitions of W, in order to provide useful and exact information about\n        // components of X that become within distance RHOBEG from their bounds.\n\n        for (int j = 0; j < n; j++) {\n            final double boundDiff = boundDifference[j];\n            lowerDifference.setEntry(j, lowerBound[j] - currentBest.getEntry(j));\n            upperDifference.setEntry(j, upperBound[j] - currentBest.getEntry(j));\n            if (lowerDifference.getEntry(j) >= -initialTrustRegionRadius) {\n                if (lowerDifference.getEntry(j) >= ZERO) {\n                    currentBest.setEntry(j, lowerBound[j]);\n                    lowerDifference.setEntry(j, ZERO);\n                    upperDifference.setEntry(j, boundDiff);\n                } else {\n                    currentBest.setEntry(j, lowerBound[j] + initialTrustRegionRadius);\n                    lowerDifference.setEntry(j, -initialTrustRegionRadius);\n                    // Computing MAX\n                    final double deltaOne = upperBound[j] - currentBest.getEntry(j);\n                    upperDifference.setEntry(j, Math.max(deltaOne, initialTrustRegionRadius));\n                }\n            } else if (upperDifference.getEntry(j) <= initialTrustRegionRadius) {\n                if (upperDifference.getEntry(j) <= ZERO) {\n                    currentBest.setEntry(j, upperBound[j]);\n                    lowerDifference.setEntry(j, -boundDiff);\n                    upperDifference.setEntry(j, ZERO);\n                } else {\n                    currentBest.setEntry(j, upperBound[j] - initialTrustRegionRadius);\n                    // Computing MIN\n                    final double deltaOne = lowerBound[j] - currentBest.getEntry(j);\n                    final double deltaTwo = -initialTrustRegionRadius;\n                    lowerDifference.setEntry(j, Math.min(deltaOne, deltaTwo));\n                    upperDifference.setEntry(j, initialTrustRegionRadius);\n                }\n            }\n        }\n\n        // Make the call of BOBYQB.\n\n        return bobyqb(lowerBound, upperBound);\n    } // bobyqa\n",
+        "begin_line": 285,
+        "end_line": 333,
+        "comment": "\n     *     This subroutine seeks the least value of a function of many variables,\n     *     by applying a trust region method that forms quadratic models by\n     *     interpolation. There is usually some freedom in the interpolation\n     *     conditions, which is taken up by minimizing the Frobenius norm of\n     *     the change to the second derivative of the model, beginning with the\n     *     zero matrix. The values of the variables are constrained by upper and\n     *     lower bounds. The arguments of the subroutine are as follows.\n     *\n     *     N must be set to the number of variables and must be at least two.\n     *     NPT is the number of interpolation conditions. Its value must be in\n     *       the interval [N+2,(N+1)(N+2)/2]. Choices that exceed 2*N+1 are not\n     *       recommended.\n     *     Initial values of the variables must be set in X(1),X(2),...,X(N). They\n     *       will be changed to the values that give the least calculated F.\n     *     For I=1,2,...,N, XL(I) and XU(I) must provide the lower and upper\n     *       bounds, respectively, on X(I). The construction of quadratic models\n     *       requires XL(I) to be strictly less than XU(I) for each I. Further,\n     *       the contribution to a model from changes to the I-th variable is\n     *       damaged severely by rounding errors if XU(I)-XL(I) is too small.\n     *     RHOBEG and RHOEND must be set to the initial and final values of a trust\n     *       region radius, so both must be positive with RHOEND no greater than\n     *       RHOBEG. Typically, RHOBEG should be about one tenth of the greatest\n     *       expected change to a variable, while RHOEND should indicate the\n     *       accuracy that is required in the final values of the variables. An\n     *       error return occurs if any of the differences XU(I)-XL(I), I=1,...,N,\n     *       is less than 2*RHOBEG.\n     *     MAXFUN must be set to an upper bound on the number of calls of CALFUN.\n     *     The array W will be used for working space. Its length must be at least\n     *       (NPT+5)*(NPT+N)+3*N*(N+5)/2.\n     *\n     * @param lowerBound Lower bounds.\n     * @param upperBound Upper bounds.\n     * @return the value of the objective at the optimum.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.bobyqb#374",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.bobyqb(double[], double[])",
+        "snippet": "    private double bobyqb(double[] lowerBound,\n                          double[] upperBound) {\n        printMethod(); // XXX\n\n        final int n = currentBest.getDimension();\n        final int npt = numberOfInterpolationPoints;\n        final int np = n + 1;\n        final int nptm = npt - np;\n        final int nh = n * np / 2;\n\n        final ArrayRealVector work1 = new ArrayRealVector(n);\n        final ArrayRealVector work2 = new ArrayRealVector(npt);\n        final ArrayRealVector work3 = new ArrayRealVector(npt);\n\n        double cauchy = Double.NaN;\n        double alpha = Double.NaN;\n        double dsq = Double.NaN;\n        double crvmin = Double.NaN;\n\n        // Set some constants.\n        // Parameter adjustments\n\n        // Function Body\n\n        // The call of PRELIM sets the elements of XBASE, XPT, FVAL, GOPT, HQ, PQ,\n        // BMAT and ZMAT for the first iteration, with the corresponding values of\n        // of NF and KOPT, which are the number of calls of CALFUN so far and the\n        // index of the interpolation point at the trust region centre. Then the\n        // initial XOPT is set too. The branch to label 720 occurs if MAXFUN is\n        // less than NPT. GOPT will be updated if KOPT is different from KBASE.\n\n        trustRegionCenterInterpolationPointIndex = 0;\n\n        prelim(lowerBound, upperBound);\n        double xoptsq = ZERO;\n        for (int i = 0; i < n; i++) {\n            trustRegionCenterOffset.setEntry(i, interpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex, i));\n            // Computing 2nd power\n            final double deltaOne = trustRegionCenterOffset.getEntry(i);\n            xoptsq += deltaOne * deltaOne;\n        }\n        double fsave = fAtInterpolationPoints.getEntry(0);\n        final int kbase = 0;\n\n        // Complete the settings that are required for the iterative procedure.\n\n        int ntrits = 0;\n        int itest = 0;\n        int knew = 0;\n        int nfsav = getEvaluations();\n        double rho = initialTrustRegionRadius;\n        double delta = rho;\n        double diffa = ZERO;\n        double diffb = ZERO;\n        double diffc = ZERO;\n        double f = ZERO;\n        double beta = ZERO;\n        double adelt = ZERO;\n        double denom = ZERO;\n        double ratio = ZERO;\n        double dnorm = ZERO;\n        double scaden = ZERO;\n        double biglsq = ZERO;\n        double distsq = ZERO;\n\n        // Update GOPT if necessary before the first iteration and after each\n        // call of RESCUE that makes a call of CALFUN.\n\n        int state = 20;\n        for(;;) switch (state) {\n        case 20: {\n            printState(20); // XXX\n            if (trustRegionCenterInterpolationPointIndex != kbase) {\n                int ih = 0;\n                for (int j = 0; j < n; j++) {\n                    for (int i = 0; i <= j; i++) {\n                        if (i < j) {\n                            gradientAtTrustRegionCenter.setEntry(j,  gradientAtTrustRegionCenter.getEntry(j) + modelSecondDerivativesValues.getEntry(ih) * trustRegionCenterOffset.getEntry(i));\n                        }\n                        gradientAtTrustRegionCenter.setEntry(i,  gradientAtTrustRegionCenter.getEntry(i) + modelSecondDerivativesValues.getEntry(ih) * trustRegionCenterOffset.getEntry(j));\n                        ih++;\n                    }\n                }\n                if (getEvaluations() > npt) {\n                    for (int k = 0; k < npt; k++) {\n                        double temp = ZERO;\n                        for (int j = 0; j < n; j++) {\n                            temp += interpolationPoints.getEntry(k, j) * trustRegionCenterOffset.getEntry(j);\n                        }\n                        temp *= modelSecondDerivativesParameters.getEntry(k);\n                        for (int i = 0; i < n; i++) {\n                            gradientAtTrustRegionCenter.setEntry(i, gradientAtTrustRegionCenter.getEntry(i) + temp * interpolationPoints.getEntry(k, i));\n                        }\n                    }\n                    throw new PathIsExploredException(); // XXX\n                }\n            }\n\n            // Generate the next point in the trust region that provides a small value\n            // of the quadratic model subject to the constraints on the variables.\n            // The int NTRITS is set to the number \"trust region\" iterations that\n            // have occurred since the last \"alternative\" iteration. If the length\n            // of XNEW-XOPT is less than HALF*RHO, however, then there is a branch to\n            // label 650 or 680 with NTRITS=-1, instead of calculating F at XNEW.\n\n        }\n        case 60: {\n            printState(60); // XXX\n            final ArrayRealVector gnew = new ArrayRealVector(n);\n            final ArrayRealVector xbdi = new ArrayRealVector(n);\n            final ArrayRealVector s = new ArrayRealVector(n);\n            final ArrayRealVector hs = new ArrayRealVector(n);\n            final ArrayRealVector hred = new ArrayRealVector(n);\n\n            final double[] dsqCrvmin = trsbox(delta, gnew, xbdi, s,\n                                              hs, hred);\n            dsq = dsqCrvmin[0];\n            crvmin = dsqCrvmin[1];\n\n            // Computing MIN\n            double deltaOne = delta;\n            double deltaTwo = Math.sqrt(dsq);\n            dnorm = Math.min(deltaOne, deltaTwo);\n            if (dnorm < HALF * rho) {\n                ntrits = -1;\n                // Computing 2nd power\n                deltaOne = TEN * rho;\n                distsq = deltaOne * deltaOne;\n                if (getEvaluations() <= nfsav + 2) {\n                    state = 650; break;\n                }\n\n                // The following choice between labels 650 and 680 depends on whether or\n                // not our work with the current RHO seems to be complete. Either RHO is\n                // decreased or termination occurs if the errors in the quadratic model at\n                // the last three interpolation points compare favourably with predictions\n                // of likely improvements to the model within distance HALF*RHO of XOPT.\n\n                // Computing MAX\n                deltaOne = Math.max(diffa, diffb);\n                final double errbig = Math.max(deltaOne, diffc);\n                final double frhosq = rho * ONE_OVER_EIGHT * rho;\n                if (crvmin > ZERO &&\n                    errbig > frhosq * crvmin) {\n                    state = 650; break;\n                }\n                final double bdtol = errbig / rho;\n                for (int j = 0; j < n; j++) {\n                    double bdtest = bdtol;\n                    if (newPoint.getEntry(j) == lowerDifference.getEntry(j)) {\n                        bdtest = work1.getEntry(j);\n                    }\n                    if (newPoint.getEntry(j) == upperDifference.getEntry(j)) {\n                        bdtest = -work1.getEntry(j);\n                    }\n                    if (bdtest < bdtol) {\n                        double curv = modelSecondDerivativesValues.getEntry((j + j * j) / 2);\n                        for (int k = 0; k < npt; k++) {\n                            // Computing 2nd power\n                            final double d1 = interpolationPoints.getEntry(k, j);\n                            curv += modelSecondDerivativesParameters.getEntry(k) * (d1 * d1);\n                        }\n                        bdtest += HALF * curv * rho;\n                        if (bdtest < bdtol) {\n                            state = 650; break;\n                        }\n                        throw new PathIsExploredException(); // XXX\n                    }\n                }\n                state = 680; break;\n            }\n            ++ntrits;\n\n            // Severe cancellation is likely to occur if XOPT is too far from XBASE.\n            // If the following test holds, then XBASE is shifted so that XOPT becomes\n            // zero. The appropriate changes are made to BMAT and to the second\n            // derivatives of the current model, beginning with the changes to BMAT\n            // that do not depend on ZMAT. VLAG is used temporarily for working space.\n\n        }\n        case 90: {\n            printState(90); // XXX\n            if (dsq <= xoptsq * ONE_OVER_A_THOUSAND) {\n                final double fracsq = xoptsq * ONE_OVER_FOUR;\n                double sumpq = ZERO;\n                // final RealVector sumVector\n                //     = new ArrayRealVector(npt, -HALF * xoptsq).add(interpolationPoints.operate(trustRegionCenter));\n                for (int k = 0; k < npt; k++) {\n                    sumpq += modelSecondDerivativesParameters.getEntry(k);\n                    double sum = -HALF * xoptsq;\n                    for (int i = 0; i < n; i++) {\n                        sum += interpolationPoints.getEntry(k, i) * trustRegionCenterOffset.getEntry(i);\n                    }\n                    // sum = sumVector.getEntry(k); // XXX \"testAckley\" and \"testDiffPow\" fail.\n                    work2.setEntry(k, sum);\n                    final double temp = fracsq - HALF * sum;\n                    for (int i = 0; i < n; i++) {\n                        work1.setEntry(i, bMatrix.getEntry(k, i));\n                        lagrangeValuesAtNewPoint.setEntry(i, sum * interpolationPoints.getEntry(k, i) + temp * trustRegionCenterOffset.getEntry(i));\n                        final int ip = npt + i;\n                        for (int j = 0; j <= i; j++) {\n                            bMatrix.setEntry(ip, j,\n                                          bMatrix.getEntry(ip, j)\n                                          + work1.getEntry(i) * lagrangeValuesAtNewPoint.getEntry(j)\n                                          + lagrangeValuesAtNewPoint.getEntry(i) * work1.getEntry(j));\n                        }\n                    }\n                }\n\n                // Then the revisions of BMAT that depend on ZMAT are calculated.\n\n                for (int m = 0; m < nptm; m++) {\n                    double sumz = ZERO;\n                    double sumw = ZERO;\n                    for (int k = 0; k < npt; k++) {\n                        sumz += zMatrix.getEntry(k, m);\n                        lagrangeValuesAtNewPoint.setEntry(k, work2.getEntry(k) * zMatrix.getEntry(k, m));\n                        sumw += lagrangeValuesAtNewPoint.getEntry(k);\n                    }\n                    for (int j = 0; j < n; j++) {\n                        double sum = (fracsq * sumz - HALF * sumw) * trustRegionCenterOffset.getEntry(j);\n                        for (int k = 0; k < npt; k++) {\n                            sum += lagrangeValuesAtNewPoint.getEntry(k) * interpolationPoints.getEntry(k, j);\n                        }\n                        work1.setEntry(j, sum);\n                        for (int k = 0; k < npt; k++) {\n                            bMatrix.setEntry(k, j,\n                                          bMatrix.getEntry(k, j)\n                                          + sum * zMatrix.getEntry(k, m));\n                        }\n                    }\n                    for (int i = 0; i < n; i++) {\n                        final int ip = i + npt;\n                        final double temp = work1.getEntry(i);\n                        for (int j = 0; j <= i; j++) {\n                            bMatrix.setEntry(ip, j,\n                                          bMatrix.getEntry(ip, j)\n                                          + temp * work1.getEntry(j));\n                        }\n                    }\n                }\n\n                // The following instructions complete the shift, including the changes\n                // to the second derivative parameters of the quadratic model.\n\n                int ih = 0;\n                for (int j = 0; j < n; j++) {\n                    work1.setEntry(j, -HALF * sumpq * trustRegionCenterOffset.getEntry(j));\n                    for (int k = 0; k < npt; k++) {\n                        work1.setEntry(j, work1.getEntry(j) + modelSecondDerivativesParameters.getEntry(k) * interpolationPoints.getEntry(k, j));\n                        interpolationPoints.setEntry(k, j, interpolationPoints.getEntry(k, j) - trustRegionCenterOffset.getEntry(j));\n                    }\n                    for (int i = 0; i <= j; i++) {\n                         modelSecondDerivativesValues.setEntry(ih,\n                                    modelSecondDerivativesValues.getEntry(ih)\n                                    + work1.getEntry(i) * trustRegionCenterOffset.getEntry(j)\n                                    + trustRegionCenterOffset.getEntry(i) * work1.getEntry(j));\n                        bMatrix.setEntry(npt + i, j, bMatrix.getEntry(npt + j, i));\n                        ih++;\n                    }\n                }\n                for (int i = 0; i < n; i++) {\n                    originShift.setEntry(i, originShift.getEntry(i) + trustRegionCenterOffset.getEntry(i));\n                    newPoint.setEntry(i, newPoint.getEntry(i) - trustRegionCenterOffset.getEntry(i));\n                    lowerDifference.setEntry(i, lowerDifference.getEntry(i) - trustRegionCenterOffset.getEntry(i));\n                    upperDifference.setEntry(i, upperDifference.getEntry(i) - trustRegionCenterOffset.getEntry(i));\n                    trustRegionCenterOffset.setEntry(i, ZERO);\n                }\n                xoptsq = ZERO;\n            }\n            if (ntrits == 0) {\n                state = 210; break;\n            }\n            state = 230; break;\n\n            // XBASE is also moved to XOPT by a call of RESCUE. This calculation is\n            // more expensive than the previous shift, because new matrices BMAT and\n            // ZMAT are generated from scratch, which may include the replacement of\n            // interpolation points whose positions seem to be causing near linear\n            // dependence in the interpolation conditions. Therefore RESCUE is called\n            // only if rounding errors have reduced by at least a factor of two the\n            // denominator of the formula for updating the H matrix. It provides a\n            // useful safeguard, but is not invoked in most applications of BOBYQA.\n\n        }\n        case 210: {\n            printState(210); // XXX\n            // Pick two alternative vectors of variables, relative to XBASE, that\n            // are suitable as new positions of the KNEW-th interpolation point.\n            // Firstly, XNEW is set to the point on a line through XOPT and another\n            // interpolation point that minimizes the predicted value of the next\n            // denominator, subject to ||XNEW - XOPT|| .LEQ. ADELT and to the SL\n            // and SU bounds. Secondly, XALT is set to the best feasible point on\n            // a constrained version of the Cauchy step of the KNEW-th Lagrange\n            // function, the corresponding value of the square of this function\n            // being returned in CAUCHY. The choice between these alternatives is\n            // going to be made when the denominator is calculated.\n\n            final double[] alphaCauchy = altmov(knew, adelt);\n            alpha = alphaCauchy[0];\n            cauchy = alphaCauchy[1];\n\n            for (int i = 0; i < n; i++) {\n                trialStepPoint.setEntry(i, newPoint.getEntry(i) - trustRegionCenterOffset.getEntry(i));\n            }\n\n            // Calculate VLAG and BETA for the current choice of D. The scalar\n            // product of D with XPT(K,.) is going to be held in W(NPT+K) for\n            // use when VQUAD is calculated.\n\n        }\n        case 230: {\n            printState(230); // XXX\n            for (int k = 0; k < npt; k++) {\n                double suma = ZERO;\n                double sumb = ZERO;\n                double sum = ZERO;\n                for (int j = 0; j < n; j++) {\n                    suma += interpolationPoints.getEntry(k, j) * trialStepPoint.getEntry(j);\n                    sumb += interpolationPoints.getEntry(k, j) * trustRegionCenterOffset.getEntry(j);\n                    sum += bMatrix.getEntry(k, j) * trialStepPoint.getEntry(j);\n                }\n                work3.setEntry(k, suma * (HALF * suma + sumb));\n                lagrangeValuesAtNewPoint.setEntry(k, sum);\n                work2.setEntry(k, suma);\n            }\n            beta = ZERO;\n            for (int m = 0; m < nptm; m++) {\n                double sum = ZERO;\n                for (int k = 0; k < npt; k++) {\n                    sum += zMatrix.getEntry(k, m) * work3.getEntry(k);\n                }\n                beta -= sum * sum;\n                for (int k = 0; k < npt; k++) {\n                    lagrangeValuesAtNewPoint.setEntry(k, lagrangeValuesAtNewPoint.getEntry(k) + sum * zMatrix.getEntry(k, m));\n                }\n            }\n            dsq = ZERO;\n            double bsum = ZERO;\n            double dx = ZERO;\n            for (int j = 0; j < n; j++) {\n                // Computing 2nd power\n                final double d1 = trialStepPoint.getEntry(j);\n                dsq += d1 * d1;\n                double sum = ZERO;\n                for (int k = 0; k < npt; k++) {\n                    sum += work3.getEntry(k) * bMatrix.getEntry(k, j);\n                }\n                bsum += sum * trialStepPoint.getEntry(j);\n                final int jp = npt + j;\n                for (int i = 0; i < n; i++) {\n                    sum += bMatrix.getEntry(jp, i) * trialStepPoint.getEntry(i);\n                }\n                lagrangeValuesAtNewPoint.setEntry(jp, sum);\n                bsum += sum * trialStepPoint.getEntry(j);\n                dx += trialStepPoint.getEntry(j) * trustRegionCenterOffset.getEntry(j);\n            }\n\n            beta = dx * dx + dsq * (xoptsq + dx + dx + HALF * dsq) + beta - bsum; // Original\n            // beta += dx * dx + dsq * (xoptsq + dx + dx + HALF * dsq) - bsum; // XXX \"testAckley\" and \"testDiffPow\" fail.\n            // beta = dx * dx + dsq * (xoptsq + 2 * dx + HALF * dsq) + beta - bsum; // XXX \"testDiffPow\" fails.\n\n            lagrangeValuesAtNewPoint.setEntry(trustRegionCenterInterpolationPointIndex,\n                          lagrangeValuesAtNewPoint.getEntry(trustRegionCenterInterpolationPointIndex) + ONE);\n\n            // If NTRITS is zero, the denominator may be increased by replacing\n            // the step D of ALTMOV by a Cauchy step. Then RESCUE may be called if\n            // rounding errors have damaged the chosen denominator.\n\n            if (ntrits == 0) {\n                // Computing 2nd power\n                final double d1 = lagrangeValuesAtNewPoint.getEntry(knew);\n                denom = d1 * d1 + alpha * beta;\n                if (denom < cauchy && cauchy > ZERO) {\n                    for (int i = 0; i < n; i++) {\n                        newPoint.setEntry(i, alternativeNewPoint.getEntry(i));\n                        trialStepPoint.setEntry(i, newPoint.getEntry(i) - trustRegionCenterOffset.getEntry(i));\n                    }\n                    cauchy = ZERO; // XXX Useful statement?\n                    state = 230; break;\n                }\n                // Alternatively, if NTRITS is positive, then set KNEW to the index of\n                // the next interpolation point to be deleted to make room for a trust\n                // region step. Again RESCUE may be called if rounding errors have damaged_\n                // the chosen denominator, which is the reason for attempting to select\n                // KNEW before calculating the next value of the objective function.\n\n            } else {\n                final double delsq = delta * delta;\n                scaden = ZERO;\n                biglsq = ZERO;\n                knew = 0;\n                for (int k = 0; k < npt; k++) {\n                    if (k == trustRegionCenterInterpolationPointIndex) {\n                        continue;\n                    }\n                    double hdiag = ZERO;\n                    for (int m = 0; m < nptm; m++) {\n                        // Computing 2nd power\n                        final double d1 = zMatrix.getEntry(k, m);\n                        hdiag += d1 * d1;\n                    }\n                    // Computing 2nd power\n                    final double d2 = lagrangeValuesAtNewPoint.getEntry(k);\n                    final double den = beta * hdiag + d2 * d2;\n                    distsq = ZERO;\n                    for (int j = 0; j < n; j++) {\n                        // Computing 2nd power\n                        final double d3 = interpolationPoints.getEntry(k, j) - trustRegionCenterOffset.getEntry(j);\n                        distsq += d3 * d3;\n                    }\n                    // Computing MAX\n                    // Computing 2nd power\n                    final double d4 = distsq / delsq;\n                    final double temp = Math.max(ONE, d4 * d4);\n                    if (temp * den > scaden) {\n                        scaden = temp * den;\n                        knew = k;\n                        denom = den;\n                    }\n                    // Computing MAX\n                    // Computing 2nd power\n                    final double d5 = lagrangeValuesAtNewPoint.getEntry(k);\n                    biglsq = Math.max(biglsq, temp * (d5 * d5));\n                }\n            }\n\n            // Put the variables for the next calculation of the objective function\n            //   in XNEW, with any adjustments for the bounds.\n\n            // Calculate the value of the objective function at XBASE+XNEW, unless\n            //   the limit on the number of calculations of F has been reached.\n\n        }\n        case 360: {\n            printState(360); // XXX\n            for (int i = 0; i < n; i++) {\n                // Computing MIN\n                // Computing MAX\n                final double d3 = lowerBound[i];\n                final double d4 = originShift.getEntry(i) + newPoint.getEntry(i);\n                final double d1 = Math.max(d3, d4);\n                final double d2 = upperBound[i];\n                currentBest.setEntry(i, Math.min(d1, d2));\n                if (newPoint.getEntry(i) == lowerDifference.getEntry(i)) {\n                    currentBest.setEntry(i, lowerBound[i]);\n                }\n                if (newPoint.getEntry(i) == upperDifference.getEntry(i)) {\n                    currentBest.setEntry(i, upperBound[i]);\n                }\n            }\n\n            f = computeObjectiveValue(currentBest.toArray());\n\n            if (!isMinimize)\n                f = -f;\n            if (ntrits == -1) {\n                fsave = f;\n                state = 720; break;\n            }\n\n            // Use the quadratic model to predict the change in F due to the step D,\n            //   and set DIFF to the error of this prediction.\n\n            final double fopt = fAtInterpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex);\n            double vquad = ZERO;\n            int ih = 0;\n            for (int j = 0; j < n; j++) {\n                vquad += trialStepPoint.getEntry(j) * gradientAtTrustRegionCenter.getEntry(j);\n                for (int i = 0; i <= j; i++) {\n                    double temp = trialStepPoint.getEntry(i) * trialStepPoint.getEntry(j);\n                    if (i == j) {\n                        temp *= HALF;\n                    }\n                    vquad += modelSecondDerivativesValues.getEntry(ih) * temp;\n                    ih++;\n               }\n            }\n            for (int k = 0; k < npt; k++) {\n                // Computing 2nd power\n                final double d1 = work2.getEntry(k);\n                final double d2 = d1 * d1; // \"d1\" must be squared first to prevent test failures.\n                vquad += HALF * modelSecondDerivativesParameters.getEntry(k) * d2;\n            }\n            final double diff = f - fopt - vquad;\n            diffc = diffb;\n            diffb = diffa;\n            diffa = Math.abs(diff);\n            if (dnorm > rho) {\n                nfsav = getEvaluations();\n            }\n\n            // Pick the next value of DELTA after a trust region step.\n\n            if (ntrits > 0) {\n                if (vquad >= ZERO) {\n                    throw new MathIllegalStateException(LocalizedFormats.TRUST_REGION_STEP_FAILED, vquad);\n                }\n                ratio = (f - fopt) / vquad;\n                final double hDelta = HALF * delta;\n                if (ratio <= ONE_OVER_TEN) {\n                    // Computing MIN\n                    delta = Math.min(hDelta, dnorm);\n                } else if (ratio <= .7) {\n                    // Computing MAX\n                    delta = Math.max(hDelta, dnorm);\n                } else {\n                    // Computing MAX\n                    delta = Math.max(hDelta, 2 * dnorm);\n                }\n                if (delta <= rho * 1.5) {\n                    delta = rho;\n                }\n\n                // Recalculate KNEW and DENOM if the new F is less than FOPT.\n\n                if (f < fopt) {\n                    final int ksav = knew;\n                    final double densav = denom;\n                    final double delsq = delta * delta;\n                    scaden = ZERO;\n                    biglsq = ZERO;\n                    knew = 0;\n                    for (int k = 0; k < npt; k++) {\n                        double hdiag = ZERO;\n                        for (int m = 0; m < nptm; m++) {\n                            // Computing 2nd power\n                            final double d1 = zMatrix.getEntry(k, m);\n                            hdiag += d1 * d1;\n                        }\n                        // Computing 2nd power\n                        final double d1 = lagrangeValuesAtNewPoint.getEntry(k);\n                        final double den = beta * hdiag + d1 * d1;\n                        distsq = ZERO;\n                        for (int j = 0; j < n; j++) {\n                            // Computing 2nd power\n                            final double d2 = interpolationPoints.getEntry(k, j) - newPoint.getEntry(j);\n                            distsq += d2 * d2;\n                        }\n                        // Computing MAX\n                        // Computing 2nd power\n                        final double d3 = distsq / delsq;\n                        final double temp = Math.max(ONE, d3 * d3);\n                        if (temp * den > scaden) {\n                            scaden = temp * den;\n                            knew = k;\n                            denom = den;\n                        }\n                        // Computing MAX\n                        // Computing 2nd power\n                        final double d4 = lagrangeValuesAtNewPoint.getEntry(k);\n                        final double d5 = temp * (d4 * d4);\n                        biglsq = Math.max(biglsq, d5);\n                    }\n                    if (scaden <= HALF * biglsq) {\n                        knew = ksav;\n                        denom = densav;\n                    }\n                }\n            }\n\n            // Update BMAT and ZMAT, so that the KNEW-th interpolation point can be\n            // moved. Also update the second derivative terms of the model.\n\n            update(beta, denom, knew);\n\n            ih = 0;\n            final double pqold = modelSecondDerivativesParameters.getEntry(knew);\n            modelSecondDerivativesParameters.setEntry(knew, ZERO);\n            for (int i = 0; i < n; i++) {\n                final double temp = pqold * interpolationPoints.getEntry(knew, i);\n                for (int j = 0; j <= i; j++) {\n                    modelSecondDerivativesValues.setEntry(ih, modelSecondDerivativesValues.getEntry(ih) + temp * interpolationPoints.getEntry(knew, j));\n                    ih++;\n                }\n            }\n            for (int m = 0; m < nptm; m++) {\n                final double temp = diff * zMatrix.getEntry(knew, m);\n                for (int k = 0; k < npt; k++) {\n                    modelSecondDerivativesParameters.setEntry(k, modelSecondDerivativesParameters.getEntry(k) + temp * zMatrix.getEntry(k, m));\n                }\n            }\n\n            // Include the new interpolation point, and make the changes to GOPT at\n            // the old XOPT that are caused by the updating of the quadratic model.\n\n            fAtInterpolationPoints.setEntry(knew,  f);\n            for (int i = 0; i < n; i++) {\n                interpolationPoints.setEntry(knew, i, newPoint.getEntry(i));\n                work1.setEntry(i, bMatrix.getEntry(knew, i));\n            }\n            for (int k = 0; k < npt; k++) {\n                double suma = ZERO;\n                for (int m = 0; m < nptm; m++) {\n                    suma += zMatrix.getEntry(knew, m) * zMatrix.getEntry(k, m);\n                }\n                double sumb = ZERO;\n                for (int j = 0; j < n; j++) {\n                    sumb += interpolationPoints.getEntry(k, j) * trustRegionCenterOffset.getEntry(j);\n                }\n                final double temp = suma * sumb;\n                for (int i = 0; i < n; i++) {\n                    work1.setEntry(i, work1.getEntry(i) + temp * interpolationPoints.getEntry(k, i));\n                }\n            }\n            for (int i = 0; i < n; i++) {\n                gradientAtTrustRegionCenter.setEntry(i, gradientAtTrustRegionCenter.getEntry(i) + diff * work1.getEntry(i));\n            }\n\n            // Update XOPT, GOPT and KOPT if the new calculated F is less than FOPT.\n\n            if (f < fopt) {\n                trustRegionCenterInterpolationPointIndex = knew;\n                xoptsq = ZERO;\n                ih = 0;\n                for (int j = 0; j < n; j++) {\n                    trustRegionCenterOffset.setEntry(j, newPoint.getEntry(j));\n                    // Computing 2nd power\n                    final double d1 = trustRegionCenterOffset.getEntry(j);\n                    xoptsq += d1 * d1;\n                    for (int i = 0; i <= j; i++) {\n                        if (i < j) {\n                            gradientAtTrustRegionCenter.setEntry(j, gradientAtTrustRegionCenter.getEntry(j) + modelSecondDerivativesValues.getEntry(ih) * trialStepPoint.getEntry(i));\n                        }\n                        gradientAtTrustRegionCenter.setEntry(i, gradientAtTrustRegionCenter.getEntry(i) + modelSecondDerivativesValues.getEntry(ih) * trialStepPoint.getEntry(j));\n                        ih++;\n                    }\n                }\n                for (int k = 0; k < npt; k++) {\n                    double temp = ZERO;\n                    for (int j = 0; j < n; j++) {\n                        temp += interpolationPoints.getEntry(k, j) * trialStepPoint.getEntry(j);\n                    }\n                    temp *= modelSecondDerivativesParameters.getEntry(k);\n                    for (int i = 0; i < n; i++) {\n                        gradientAtTrustRegionCenter.setEntry(i, gradientAtTrustRegionCenter.getEntry(i) + temp * interpolationPoints.getEntry(k, i));\n                    }\n                }\n            }\n\n            // Calculate the parameters of the least Frobenius norm interpolant to\n            // the current data, the gradient of this interpolant at XOPT being put\n            // into VLAG(NPT+I), I=1,2,...,N.\n\n            if (ntrits > 0) {\n                for (int k = 0; k < npt; k++) {\n                    lagrangeValuesAtNewPoint.setEntry(k, fAtInterpolationPoints.getEntry(k) - fAtInterpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex));\n                    work3.setEntry(k, ZERO);\n                }\n                for (int j = 0; j < nptm; j++) {\n                    double sum = ZERO;\n                    for (int k = 0; k < npt; k++) {\n                        sum += zMatrix.getEntry(k, j) * lagrangeValuesAtNewPoint.getEntry(k);\n                    }\n                    for (int k = 0; k < npt; k++) {\n                        work3.setEntry(k, work3.getEntry(k) + sum * zMatrix.getEntry(k, j));\n                    }\n                }\n                for (int k = 0; k < npt; k++) {\n                    double sum = ZERO;\n                    for (int j = 0; j < n; j++) {\n                        sum += interpolationPoints.getEntry(k, j) * trustRegionCenterOffset.getEntry(j);\n                    }\n                    work2.setEntry(k, work3.getEntry(k));\n                    work3.setEntry(k, sum * work3.getEntry(k));\n                }\n                double gqsq = ZERO;\n                double gisq = ZERO;\n                for (int i = 0; i < n; i++) {\n                    double sum = ZERO;\n                    for (int k = 0; k < npt; k++) {\n                        sum += bMatrix.getEntry(k, i) *\n                            lagrangeValuesAtNewPoint.getEntry(k) + interpolationPoints.getEntry(k, i) * work3.getEntry(k);\n                    }\n                    if (trustRegionCenterOffset.getEntry(i) == lowerDifference.getEntry(i)) {\n                        // Computing MIN\n                        // Computing 2nd power\n                        final double d1 = Math.min(ZERO, gradientAtTrustRegionCenter.getEntry(i));\n                        gqsq += d1 * d1;\n                        // Computing 2nd power\n                        final double d2 = Math.min(ZERO, sum);\n                        gisq += d2 * d2;\n                    } else if (trustRegionCenterOffset.getEntry(i) == upperDifference.getEntry(i)) {\n                        // Computing MAX\n                        // Computing 2nd power\n                        final double d1 = Math.max(ZERO, gradientAtTrustRegionCenter.getEntry(i));\n                        gqsq += d1 * d1;\n                        // Computing 2nd power\n                        final double d2 = Math.max(ZERO, sum);\n                        gisq += d2 * d2;\n                    } else {\n                        // Computing 2nd power\n                        final double d1 = gradientAtTrustRegionCenter.getEntry(i);\n                        gqsq += d1 * d1;\n                        gisq += sum * sum;\n                    }\n                    lagrangeValuesAtNewPoint.setEntry(npt + i, sum);\n                }\n\n                // Test whether to replace the new quadratic model by the least Frobenius\n                // norm interpolant, making the replacement if the test is satisfied.\n\n                ++itest;\n                if (gqsq < TEN * gisq) {\n                    itest = 0;\n                }\n                if (itest >= 3) {\n                    for (int i = 0, max = Math.max(npt, nh); i < max; i++) {\n                        if (i < n) {\n                            gradientAtTrustRegionCenter.setEntry(i, lagrangeValuesAtNewPoint.getEntry(npt + i));\n                        }\n                        if (i < npt) {\n                            modelSecondDerivativesParameters.setEntry(i, work2.getEntry(i));\n                        }\n                        if (i < nh) {\n                            modelSecondDerivativesValues.setEntry(i, ZERO);\n                        }\n                        itest = 0;\n                    }\n                }\n            }\n\n            // If a trust region step has provided a sufficient decrease in F, then\n            // branch for another trust region calculation. The case NTRITS=0 occurs\n            // when the new interpolation point was reached by an alternative step.\n\n            if (ntrits == 0) {\n                state = 60; break;\n            }\n            if (f <= fopt + ONE_OVER_TEN * vquad) {\n                state = 60; break;\n            }\n\n            // Alternatively, find out if the interpolation points are close enough\n            //   to the best point so far.\n\n            // Computing MAX\n            // Computing 2nd power\n            final double d1 = TWO * delta;\n            // Computing 2nd power\n            final double d2 = TEN * rho;\n            distsq = Math.max(d1 * d1, d2 * d2);\n        }\n        case 650: {\n            printState(650); // XXX\n            knew = -1;\n            for (int k = 0; k < npt; k++) {\n                double sum = ZERO;\n                for (int j = 0; j < n; j++) {\n                    // Computing 2nd power\n                    final double d1 = interpolationPoints.getEntry(k, j) - trustRegionCenterOffset.getEntry(j);\n                    sum += d1 * d1;\n                }\n                if (sum > distsq) {\n                    knew = k;\n                    distsq = sum;\n                }\n            }\n\n            // If KNEW is positive, then ALTMOV finds alternative new positions for\n            // the KNEW-th interpolation point within distance ADELT of XOPT. It is\n            // reached via label 90. Otherwise, there is a branch to label 60 for\n            // another trust region iteration, unless the calculations with the\n            // current RHO are complete.\n\n            if (knew >= 0) {\n                final double dist = Math.sqrt(distsq);\n                if (ntrits == -1) {\n                    // Computing MIN\n                    delta = Math.min(ONE_OVER_TEN * delta, HALF * dist);\n                    if (delta <= rho * 1.5) {\n                        delta = rho;\n                    }\n                }\n                ntrits = 0;\n                // Computing MAX\n                // Computing MIN\n                final double d1 = Math.min(ONE_OVER_TEN * dist, delta);\n                adelt = Math.max(d1, rho);\n                dsq = adelt * adelt;\n                state = 90; break;\n            }\n            if (ntrits == -1) {\n                state = 680; break;\n            }\n            if (ratio > ZERO) {\n                state = 60; break;\n            }\n            if (Math.max(delta, dnorm) > rho) {\n                state = 60; break;\n            }\n\n            // The calculations with the current value of RHO are complete. Pick the\n            //   next values of RHO and DELTA.\n        }\n        case 680: {\n            printState(680); // XXX\n            if (rho > stoppingTrustRegionRadius) {\n                delta = HALF * rho;\n                ratio = rho / stoppingTrustRegionRadius;\n                if (ratio <= SIXTEEN) {\n                    rho = stoppingTrustRegionRadius;\n                } else if (ratio <= TWO_HUNDRED_FIFTY) {\n                    rho = Math.sqrt(ratio) * stoppingTrustRegionRadius;\n                } else {\n                    rho *= ONE_OVER_TEN;\n                }\n                delta = Math.max(delta, rho);\n                ntrits = 0;\n                nfsav = getEvaluations();\n                state = 60; break;\n            }\n\n            // Return from the calculation, after another Newton-Raphson step, if\n            //   it is too short to have been tried before.\n\n            if (ntrits == -1) {\n                state = 360; break;\n            }\n        }\n        case 720: {\n            printState(720); // XXX\n            if (fAtInterpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex) <= fsave) {\n                for (int i = 0; i < n; i++) {\n                    // Computing MIN\n                    // Computing MAX\n                    final double d3 = lowerBound[i];\n                    final double d4 = originShift.getEntry(i) + trustRegionCenterOffset.getEntry(i);\n                    final double d1 = Math.max(d3, d4);\n                    final double d2 = upperBound[i];\n                    currentBest.setEntry(i, Math.min(d1, d2));\n                    if (trustRegionCenterOffset.getEntry(i) == lowerDifference.getEntry(i)) {\n                        currentBest.setEntry(i, lowerBound[i]);\n                    }\n                    if (trustRegionCenterOffset.getEntry(i) == upperDifference.getEntry(i)) {\n                        currentBest.setEntry(i, upperBound[i]);\n                    }\n                }\n                f = fAtInterpolationPoints.getEntry(trustRegionCenterInterpolationPointIndex);\n            }\n            return f;\n        }\n        default: {\n            throw new MathIllegalStateException(LocalizedFormats.SIMPLE_MESSAGE, \"bobyqb\");\n        }}\n    } // bobyqb\n",
+        "begin_line": 374,
+        "end_line": 1219,
+        "comment": "\n     *     The arguments N, NPT, X, XL, XU, RHOBEG, RHOEND, IPRINT and MAXFUN\n     *       are identical to the corresponding arguments in SUBROUTINE BOBYQA.\n     *     XBASE holds a shift of origin that should reduce the contributions\n     *       from rounding errors to values of the model and Lagrange functions.\n     *     XPT is a two-dimensional array that holds the coordinates of the\n     *       interpolation points relative to XBASE.\n     *     FVAL holds the values of F at the interpolation points.\n     *     XOPT is set to the displacement from XBASE of the trust region centre.\n     *     GOPT holds the gradient of the quadratic model at XBASE+XOPT.\n     *     HQ holds the explicit second derivatives of the quadratic model.\n     *     PQ contains the parameters of the implicit second derivatives of the\n     *       quadratic model.\n     *     BMAT holds the last N columns of H.\n     *     ZMAT holds the factorization of the leading NPT by NPT submatrix of H,\n     *       this factorization being ZMAT times ZMAT^T, which provides both the\n     *       correct rank and positive semi-definiteness.\n     *     NDIM is the first dimension of BMAT and has the value NPT+N.\n     *     SL and SU hold the differences XL-XBASE and XU-XBASE, respectively.\n     *       All the components of every XOPT are going to satisfy the bounds\n     *       SL(I) .LEQ. XOPT(I) .LEQ. SU(I), with appropriate equalities when\n     *       XOPT is on a constraint boundary.\n     *     XNEW is chosen by SUBROUTINE TRSBOX or ALTMOV. Usually XBASE+XNEW is the\n     *       vector of variables for the next call of CALFUN. XNEW also satisfies\n     *       the SL and SU constraints in the way that has just been mentioned.\n     *     XALT is an alternative to XNEW, chosen by ALTMOV, that may replace XNEW\n     *       in order to increase the denominator in the updating of UPDATE.\n     *     D is reserved for a trial step from XOPT, which is usually XNEW-XOPT.\n     *     VLAG contains the values of the Lagrange functions at a new point X.\n     *       They are part of a product that requires VLAG to be of length NDIM.\n     *     W is a one-dimensional array that is used for working space. Its length\n     *       must be at least 3*NDIM = 3*(NPT+N).\n     *\n     * @param lowerBound Lower bounds.\n     * @param upperBound Upper bounds.\n     * @return the value of the objective at the optimum.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.RealVectorFormat#81",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math.linear.RealVectorFormat.RealVectorFormat(java.text.NumberFormat)",
+        "snippet": "    public RealVectorFormat(final NumberFormat format) {\n        this(DEFAULT_PREFIX, DEFAULT_SUFFIX, DEFAULT_SEPARATOR, format);\n    }\n",
+        "begin_line": 81,
+        "end_line": 83,
+        "comment": "\n     * Create an instance with a custom number format for components.\n     * @param format the custom format for components.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.RealVectorFormat#105",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math.linear.RealVectorFormat.RealVectorFormat(java.lang.String, java.lang.String, java.lang.String, java.text.NumberFormat)",
+        "snippet": "    public RealVectorFormat(final String prefix, final String suffix,\n                            final String separator, final NumberFormat format) {\n        this.prefix      = prefix;\n        this.suffix      = suffix;\n        this.separator   = separator;\n        trimmedPrefix    = prefix.trim();\n        trimmedSuffix    = suffix.trim();\n        trimmedSeparator = separator.trim();\n        this.format      = format;\n    }\n",
+        "begin_line": 105,
+        "end_line": 114,
+        "comment": "\n     * Create an instance with custom prefix, suffix, separator and format\n     * for components.\n     * @param prefix prefix to use instead of the default \"{\"\n     * @param suffix suffix to use instead of the default \"}\"\n     * @param separator separator to use instead of the default \"; \"\n     * @param format the custom format for components.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.getInstance#161",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math.linear.RealVectorFormat.getInstance()",
+        "snippet": "    public static RealVectorFormat getInstance() {\n        return getInstance(Locale.getDefault());\n    }\n",
+        "begin_line": 161,
+        "end_line": 163,
+        "comment": "\n     * Returns the default real vector format for the current locale.\n     * @return the default real vector format.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "RealVectorFormat.getInstance#170",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/RealVectorFormat.java",
+        "class_name": "org.apache.commons.math.linear.RealVectorFormat",
+        "signature": "org.apache.commons.math.linear.RealVectorFormat.getInstance(java.util.Locale)",
+        "snippet": "    public static RealVectorFormat getInstance(final Locale locale) {\n        return new RealVectorFormat(CompositeFormat.getDefaultNumberFormat(locale));\n    }\n",
+        "begin_line": 170,
+        "end_line": 172,
+        "comment": "\n     * Returns the default real vector format for the given locale.\n     * @param locale the specific locale used by the format.\n     * @return the real vector format specific to the given locale.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkMatrixIndex#365",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math.linear.MatrixUtils",
+        "signature": "org.apache.commons.math.linear.MatrixUtils.checkMatrixIndex(org.apache.commons.math.linear.AnyMatrix, int, int)",
+        "snippet": "    public static void checkMatrixIndex(final AnyMatrix m,\n                                        final int row, final int column) {\n        checkRowIndex(m, row);\n        checkColumnIndex(m, column);\n    }\n",
+        "begin_line": 365,
+        "end_line": 369,
+        "comment": "\n     * Check if matrix indices are valid.\n     *\n     * @param m Matrix.\n     * @param row Row index to check.\n     * @param column Column index to check.\n     * @throws OutOfRangeException if {@code row} or {@code column} is not\n     * a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkRowIndex#378",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math.linear.MatrixUtils",
+        "signature": "org.apache.commons.math.linear.MatrixUtils.checkRowIndex(org.apache.commons.math.linear.AnyMatrix, int)",
+        "snippet": "    public static void checkRowIndex(final AnyMatrix m, final int row) {\n        if (row < 0 ||\n            row >= m.getRowDimension()) {\n            throw new OutOfRangeException(LocalizedFormats.ROW_INDEX,\n                                          row, 0, m.getRowDimension() - 1);\n        }\n    }\n",
+        "begin_line": 378,
+        "end_line": 384,
+        "comment": "\n     * Check if a row index is valid.\n     *\n     * @param m Matrix.\n     * @param row Row index to check.\n     * @throws OutOfRangeException if {@code row} is not a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "MatrixUtils.checkColumnIndex#393",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/MatrixUtils.java",
+        "class_name": "org.apache.commons.math.linear.MatrixUtils",
+        "signature": "org.apache.commons.math.linear.MatrixUtils.checkColumnIndex(org.apache.commons.math.linear.AnyMatrix, int)",
+        "snippet": "    public static void checkColumnIndex(final AnyMatrix m, final int column) {\n        if (column < 0 || column >= m.getColumnDimension()) {\n            throw new OutOfRangeException(LocalizedFormats.COLUMN_INDEX,\n                                           column, 0, m.getColumnDimension() - 1);\n        }\n    }\n",
+        "begin_line": 393,
+        "end_line": 398,
+        "comment": "\n     * Check if a column index is valid.\n     *\n     * @param m Matrix.\n     * @param column Column index to check.\n     * @throws OutOfRangeException if {@code column} is not a valid index.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#62",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.ArrayRealVector(int)",
+        "snippet": "    public ArrayRealVector(int size) {\n        data = new double[size];\n    }\n",
+        "begin_line": 62,
+        "end_line": 64,
+        "comment": "\n     * Construct a vector of zeroes.\n     *\n     * @param size Size of the vector.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.ArrayRealVector#83",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.ArrayRealVector(double[])",
+        "snippet": "    public ArrayRealVector(double[] d) {\n        data = d.clone();\n    }\n",
+        "begin_line": 83,
+        "end_line": 85,
+        "comment": "\n     * Construct a vector from an array, copying the input array.\n     *\n     * @param d Array.\n     * @throws NullArgumentException if {@code d} is {@code null}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.getEntry#620",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.getEntry(int)",
+        "snippet": "    @Override\n    public double getEntry(int index) {\n        return data[index];\n    }\n",
+        "begin_line": 620,
+        "end_line": 623,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.RealVector": "\n     * Return the entry at the specified index.\n     *\n     * @param index Index location of entry to be fetched.\n     * @return the vector entry at {@code index}.\n     * @throws org.apache.commons.math.exception.OutOfRangeException\n     * if the index is not valid.\n     * @see #setEntry(int, double)\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.getDimension#626",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.getDimension()",
+        "snippet": "    @Override\n    public int getDimension() {\n        return data.length;\n    }\n",
+        "begin_line": 626,
+        "end_line": 629,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.RealVector": "\n     * Returns the size of the vector.\n     *\n     * @return the size of this vector.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.setEntry#674",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.setEntry(int, double)",
+        "snippet": "    @Override\n    public void setEntry(int index, double value) {\n        try {\n            data[index] = value;\n        } catch (IndexOutOfBoundsException e) {\n            checkIndex(index);\n        }\n    }\n",
+        "begin_line": 674,
+        "end_line": 681,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.RealVector": "\n     * Set a single element.\n     *\n     * @param index element index.\n     * @param value new value for the element.\n     * @throws org.apache.commons.math.exception.OutOfRangeException\n     * if the index is not valid.\n     * @see #getEntry(int)\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "ArrayRealVector.toArray#730",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/ArrayRealVector.java",
+        "class_name": "org.apache.commons.math.linear.ArrayRealVector",
+        "signature": "org.apache.commons.math.linear.ArrayRealVector.toArray()",
+        "snippet": "    @Override\n    public double[] toArray(){\n        return data.clone();\n    }\n",
+        "begin_line": 730,
+        "end_line": 733,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.RealVector": "\n     * Convert the vector to an array of {@code double}s.\n     * The array is independent from this vector data: the elements\n     * are copied.\n     *\n     * @return an array containing a copy of the vector elements.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.Array2DRowRealMatrix#54",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math.linear.Array2DRowRealMatrix.Array2DRowRealMatrix(int, int)",
+        "snippet": "    public Array2DRowRealMatrix(final int rowDimension, final int columnDimension) {\n        super(rowDimension, columnDimension);\n        data = new double[rowDimension][columnDimension];\n    }\n",
+        "begin_line": 54,
+        "end_line": 57,
+        "comment": "\n     * Create a new RealMatrix with the supplied row and column dimensions.\n     *\n     * @param rowDimension Number of rows in the new matrix.\n     * @param columnDimension Number of columns in the new matrix.\n     * @throws org.apache.commons.math.exception.NotStrictlyPositiveException\n     * if the row or column dimension is not positive.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getEntry#292",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math.linear.Array2DRowRealMatrix.getEntry(int, int)",
+        "snippet": "    @Override\n    public double getEntry(final int row, final int column) {\n        MatrixUtils.checkMatrixIndex(this, row, column);\n        return data[row][column];\n    }\n",
+        "begin_line": 292,
+        "end_line": 296,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.AbstractRealMatrix": " {@inheritDoc} ",
+            "java.io.Serializable": null,
+            "org.apache.commons.math.linear.RealLinearOperator": null,
+            "org.apache.commons.math.linear.RealMatrix": "\n     * Get the entry in the specified row and column.\n     * Row and column indices start at 0.\n     *\n     * @param row Row location of entry to be fetched.\n     * @param column Column location of entry to be fetched.\n     * @return the matrix entry at {@code (row, column)}.\n     * @throws org.apache.commons.math.exception.OutOfRangeException if the\n     * row or column index is not valid.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.setEntry#299",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math.linear.Array2DRowRealMatrix.setEntry(int, int, double)",
+        "snippet": "    @Override\n    public void setEntry(final int row, final int column, final double value) {\n        MatrixUtils.checkMatrixIndex(this, row, column);\n        data[row][column] = value;\n    }\n",
+        "begin_line": 299,
+        "end_line": 303,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.AbstractRealMatrix": " {@inheritDoc} ",
+            "java.io.Serializable": null,
+            "org.apache.commons.math.linear.RealLinearOperator": null,
+            "org.apache.commons.math.linear.RealMatrix": "\n     * Set the entry in the specified row and column.\n     * Row and column indices start at 0.\n     *\n     * @param row Row location of entry to be set.\n     * @param column Column location of entry to be set.\n     * @param value matrix entry to be set.\n     * @throws org.apache.commons.math.exception.OutOfRangeException if\n     * the row or column index is not valid\n     * @since 2.0\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getRowDimension#320",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math.linear.Array2DRowRealMatrix.getRowDimension()",
+        "snippet": "    @Override\n        public int getRowDimension() {\n        return (data == null) ? 0 : data.length;\n    }\n",
+        "begin_line": 320,
+        "end_line": 323,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.AbstractRealMatrix": "\n     * Returns the number of rows of this matrix.\n     *\n     * @return the number of rows.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Array2DRowRealMatrix.getColumnDimension#326",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/Array2DRowRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.Array2DRowRealMatrix",
+        "signature": "org.apache.commons.math.linear.Array2DRowRealMatrix.getColumnDimension()",
+        "snippet": "    @Override\n    public int getColumnDimension() {\n        return ((data == null) || (data[0] == null)) ? 0 : data[0].length;\n    }\n",
+        "begin_line": 326,
+        "end_line": 329,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.linear.AbstractRealMatrix": "\n     * Returns the number of columns of this matrix.\n     *\n     * @return the number of columns.\n     ",
+            "java.io.Serializable": null
+        },
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractRealMatrix.AbstractRealMatrix#53",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/linear/AbstractRealMatrix.java",
+        "class_name": "org.apache.commons.math.linear.AbstractRealMatrix",
+        "signature": "org.apache.commons.math.linear.AbstractRealMatrix.AbstractRealMatrix(int, int)",
+        "snippet": "    protected AbstractRealMatrix(final int rowDimension, final int columnDimension) {\n        if (rowDimension < 1) {\n            throw new NotStrictlyPositiveException(rowDimension);\n        }\n        if (columnDimension < 1) {\n            throw new NotStrictlyPositiveException(columnDimension);\n        }\n    }\n",
+        "begin_line": 53,
+        "end_line": 60,
+        "comment": "\n     * Create a new RealMatrix with the supplied row and column dimensions.\n     *\n     * @param rowDimension  the number of rows in the new matrix\n     * @param columnDimension  the number of columns in the new matrix\n     * @throws NotStrictlyPositiveException if row or column dimension is not positive\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2673
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.setMaximalCount#90",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.setMaximalCount(int)",
+        "snippet": "    public void setMaximalCount(int max) {\n        maximalCount = max;\n    }\n",
+        "begin_line": 90,
+        "end_line": 92,
+        "comment": "\n     * Sets the upper limit for the counter.\n     * This does not automatically reset the current count to zero (see\n     * {@link #resetCount()}).\n     *\n     * @param max Upper limit of the counter.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.resetCount#158",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.resetCount()",
+        "snippet": "    public void resetCount() {\n        count = 0;\n    }\n",
+        "begin_line": 158,
+        "end_line": 160,
+        "comment": "\n     * Resets the counter to 0.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateSimpleBoundsOptimizer.getLowerBound#71",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateSimpleBoundsOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer.getLowerBound()",
+        "snippet": "    public double[] getLowerBound() {\n        return lowerBound.clone();\n    }\n",
+        "begin_line": 71,
+        "end_line": 73,
+        "comment": "\n     * @return the lower bounds.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateSimpleBoundsOptimizer.getUpperBound#78",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateSimpleBoundsOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer.getUpperBound()",
+        "snippet": "    public double[] getUpperBound() {\n        return upperBound.clone();\n    }\n",
+        "begin_line": 78,
+        "end_line": 80,
+        "comment": "\n     * @return the upper bounds.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.optimize#102",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.optimize(int, FUNC, org.apache.commons.math.optimization.GoalType, double[])",
+        "snippet": "    public RealPointValuePair optimize(int maxEval, FUNC f, GoalType goalType,\n                                       double[] startPoint) {\n        // Checks.\n        if (f == null) {\n            throw new NullArgumentException();\n        }\n        if (goalType == null) {\n            throw new NullArgumentException();\n        }\n        if (startPoint == null) {\n            throw new NullArgumentException();\n        }\n\n        // Reset.\n        evaluations.setMaximalCount(maxEval);\n        evaluations.resetCount();\n\n        // Store optimization problem characteristics.\n        function = f;\n        goal = goalType;\n        start = startPoint.clone();\n\n        // Perform computation.\n        return doOptimize();\n    }\n",
+        "begin_line": 102,
+        "end_line": 126,
+        "comment": " {@inheritDoc} ",
+        "resolved_comments": {
+            "org.apache.commons.math.optimization.BaseMultivariateOptimizer": "\n     * Optimize an objective function.\n     *\n     * @param f Objective function.\n     * @param goalType Type of optimization goal: either\n     * {@link GoalType#MAXIMIZE} or {@link GoalType#MINIMIZE}.\n     * @param startPoint Start point for optimization.\n     * @param maxEval Maximum number of function evaluations.\n     * @return the point/value pair giving the optimal value for objective\n     * function.\n     * @throws org.apache.commons.math.exception.DimensionMismatchException\n     * if the start point dimension is wrong.\n     * @throws org.apache.commons.math.exception.TooManyEvaluationsException\n     * if the maximal number of evaluations is exceeded.\n     * @throws org.apache.commons.math.exception.NullArgumentException if\n     * any argument is {@code null}.\n     "
+        },
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.getStartPoint#138",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.getStartPoint()",
+        "snippet": "    public double[] getStartPoint() {\n        return start.clone();\n    }\n",
+        "begin_line": 138,
+        "end_line": 140,
+        "comment": "\n     * @return the initial guess.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.printMethod#2464",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.printMethod()",
+        "snippet": "    private static void printMethod() {\n        //        System.out.println(caller(2));\n    }\n",
+        "begin_line": 2464,
+        "end_line": 2466,
+        "comment": " XXX utility for figuring out call sequence.",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2582
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.Incrementor#60",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.Incrementor(int)",
+        "snippet": "    public Incrementor(int max) {\n        this(max,\n             new MaxCountExceededCallback() {\n                 /** {@inheritDoc} */\n                 public void trigger(int max) {\n                     throw new MaxCountExceededException(max);\n                 }\n             });\n    }\n",
+        "begin_line": 60,
+        "end_line": 68,
+        "comment": "\n     * Defines a maximal count.\n     *\n     * @param max Maximal count.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.Incrementor#51",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.Incrementor()",
+        "snippet": "    public Incrementor() {\n        this(0);\n    }\n",
+        "begin_line": 51,
+        "end_line": 53,
+        "comment": "\n     * Default constructor.\n     * For the new instance to be useful, the maximal count must be set\n     * by calling {@link #setMaximalCount(int) setMaximalCount}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "Incrementor.Incrementor#77",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/util/Incrementor.java",
+        "class_name": "org.apache.commons.math.util.Incrementor",
+        "signature": "org.apache.commons.math.util.Incrementor.Incrementor(int, org.apache.commons.math.util.Incrementor.MaxCountExceededCallback)",
+        "snippet": "    public Incrementor(int max,\n                       MaxCountExceededCallback cb) {\n        maximalCount = max;\n        maxCountCallback = cb;\n    }\n",
+        "begin_line": 77,
+        "end_line": 81,
+        "comment": "\n     * Defines a maximal count and a callback method to be triggered at\n     * counter exhaustion.\n     *\n     * @param max Maximal count.\n     * @param cb Function to be called when the maximal count has been reached.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateSimpleBoundsOptimizer.BaseAbstractMultivariateSimpleBoundsOptimizer#59",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateSimpleBoundsOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateSimpleBoundsOptimizer.BaseAbstractMultivariateSimpleBoundsOptimizer()",
+        "snippet": "    protected BaseAbstractMultivariateSimpleBoundsOptimizer() {}\n",
+        "begin_line": 59,
+        "end_line": 59,
+        "comment": "\n     * Simple constructor with default settings.\n     * The convergence checker is set to a\n     * {@link org.apache.commons.math.optimization.SimpleScalarValueChecker} and\n     * the allowed number of evaluations is set to {@link Integer#MAX_VALUE}.\n     *\n     * @see BaseAbstractMultivariateOptimizer#BaseAbstractMultivariateOptimizer()\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.BaseAbstractMultivariateOptimizer#59",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.BaseAbstractMultivariateOptimizer()",
+        "snippet": "    protected BaseAbstractMultivariateOptimizer() {\n        this(new SimpleScalarValueChecker());\n    }\n",
+        "begin_line": 59,
+        "end_line": 61,
+        "comment": "\n     * Simple constructor with default settings.\n     * The convergence check is set to a {@link SimpleScalarValueChecker} and\n     * the allowed number of evaluations is set to {@link Integer#MAX_VALUE}.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BaseAbstractMultivariateOptimizer.BaseAbstractMultivariateOptimizer#65",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BaseAbstractMultivariateOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BaseAbstractMultivariateOptimizer.BaseAbstractMultivariateOptimizer(org.apache.commons.math.optimization.ConvergenceChecker<org.apache.commons.math.optimization.RealPointValuePair>)",
+        "snippet": "    protected BaseAbstractMultivariateOptimizer(ConvergenceChecker<RealPointValuePair> checker) {\n        this.checker = checker;\n    }\n",
+        "begin_line": 65,
+        "end_line": 67,
+        "comment": "\n     * @param checker Convergence checker.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.BOBYQAOptimizer#210",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.BOBYQAOptimizer(int)",
+        "snippet": "    public BOBYQAOptimizer(int numberOfInterpolationPoints) {\n        this(numberOfInterpolationPoints,\n             DEFAULT_INITIAL_RADIUS,\n             DEFAULT_STOPPING_RADIUS);\n    }\n",
+        "begin_line": 210,
+        "end_line": 214,
+        "comment": "\n     * @param numberOfInterpolationPoints Number of interpolation conditions.\n     * For a problem of dimension {@code n}, its value must be in the interval\n     * {@code [n+2, (n+1)(n+2)/2]}.\n     * Choices that exceed {@code 2n+1} are not recommended.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "BOBYQAOptimizer.BOBYQAOptimizer#224",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/direct/BOBYQAOptimizer.java",
+        "class_name": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer",
+        "signature": "org.apache.commons.math.optimization.direct.BOBYQAOptimizer.BOBYQAOptimizer(int, double, double)",
+        "snippet": "    public BOBYQAOptimizer(int numberOfInterpolationPoints,\n                           double initialTrustRegionRadius,\n                           double stoppingTrustRegionRadius) {\n        this.numberOfInterpolationPoints = numberOfInterpolationPoints;\n        this.initialTrustRegionRadius = initialTrustRegionRadius;\n        this.stoppingTrustRegionRadius = stoppingTrustRegionRadius;\n    }\n",
+        "begin_line": 224,
+        "end_line": 230,
+        "comment": "\n     * @param numberOfInterpolationPoints Number of interpolation conditions.\n     * For a problem of dimension {@code n}, its value must be in the interval\n     * {@code [n+2, (n+1)(n+2)/2]}.\n     * Choices that exceed {@code 2n+1} are not recommended.\n     * @param initialTrustRegionRadius Initial trust region radius.\n     * @param stoppingTrustRegionRadius Stopping trust region radius.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "SimpleScalarValueChecker.SimpleScalarValueChecker#39",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/SimpleScalarValueChecker.java",
+        "class_name": "org.apache.commons.math.optimization.SimpleScalarValueChecker",
+        "signature": "org.apache.commons.math.optimization.SimpleScalarValueChecker.SimpleScalarValueChecker()",
+        "snippet": "    public SimpleScalarValueChecker() {}\n",
+        "begin_line": 39,
+        "end_line": 39,
+        "comment": "\n     * Build an instance with default thresholds.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    },
+    {
+        "name": "AbstractConvergenceChecker.AbstractConvergenceChecker#52",
+        "is_bug": false,
+        "src_path": "src/main/java/org/apache/commons/math/optimization/AbstractConvergenceChecker.java",
+        "class_name": "org.apache.commons.math.optimization.AbstractConvergenceChecker",
+        "signature": "org.apache.commons.math.optimization.AbstractConvergenceChecker.AbstractConvergenceChecker()",
+        "snippet": "    public AbstractConvergenceChecker() {\n        this.relativeThreshold = DEFAULT_RELATIVE_THRESHOLD;\n        this.absoluteThreshold = DEFAULT_ABSOLUTE_THRESHOLD;\n    }\n",
+        "begin_line": 52,
+        "end_line": 55,
+        "comment": "\n     * Build an instance with default thresholds.\n     ",
+        "resolved_comments": {},
+        "susp": {
+            "ochiai_susp": 0.2425
+        },
+        "num_failing_tests": 1
+    }
+]

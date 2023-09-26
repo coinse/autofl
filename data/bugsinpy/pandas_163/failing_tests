@@ -1,0 +1,64 @@
+coverage run -m pytest pandas/tests/window/test_rolling.py::TestRolling::test_readonly_array
+============================= test session starts ==============================
+platform linux -- Python 3.8.3, pytest-5.4.3, py-1.8.1, pluggy-0.13.1
+rootdir: /home/user/BugsInPy/temp/projects/pandas, inifile: setup.cfg
+plugins: hypothesis-5.16.0
+collected 1 item
+
+pandas/tests/window/test_rolling.py F                                    [100%]
+
+=================================== FAILURES ===================================
+_______________________ TestRolling.test_readonly_array ________________________
+
+self = <pandas.tests.window.test_rolling.TestRolling object at 0x7f3a54da7520>
+
+    def test_readonly_array(self):
+        # GH-27766
+        arr = np.array([1, 3, np.nan, 3, 5])
+        arr.setflags(write=False)
+>       result = pd.Series(arr).rolling(2).mean()
+
+pandas/tests/window/test_rolling.py:334: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/core/window.py:1874: in mean
+    return super().mean(*args, **kwargs)
+pandas/core/window.py:1179: in mean
+    return self._apply("roll_mean", "mean", **kwargs)
+pandas/core/window.py:427: in _apply
+    values = self._prep_values(b.values)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Rolling [window=2,center=False,axis=0]
+values = array([ 1.,  3., nan,  3.,  5.])
+
+    def _prep_values(self, values: Optional[np.ndarray] = None) -> np.ndarray:
+        """Convert input to numpy arrays for Cython routines"""
+        if values is None:
+            values = getattr(self._selected_obj, "values", self._selected_obj)
+    
+        # GH #12373 : rolling functions error on float32 data
+        # make sure the data is coerced to float64
+        if is_float_dtype(values.dtype):
+            values = ensure_float64(values)
+        elif is_integer_dtype(values.dtype):
+            values = ensure_float64(values)
+        elif needs_i8_conversion(values.dtype):
+            raise NotImplementedError(
+                "ops for {action} for this "
+                "dtype {dtype} are not "
+                "implemented".format(action=self._window_type, dtype=values.dtype)
+            )
+        else:
+            try:
+                values = ensure_float64(values)
+            except (ValueError, TypeError):
+                raise TypeError("cannot handle this type -> {0}".format(values.dtype))
+    
+        # Always convert inf to nan
+>       values[np.isinf(values)] = np.NaN
+E       ValueError: assignment destination is read-only
+
+pandas/core/window.py:250: ValueError
+=========================== short test summary info ============================
+FAILED pandas/tests/window/test_rolling.py::TestRolling::test_readonly_array
+============================== 1 failed in 0.54s ===============================
