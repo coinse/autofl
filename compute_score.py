@@ -319,6 +319,7 @@ if __name__ == '__main__':
     parser.add_argument('--project', '-p', type=str, default=None)
     parser.add_argument('--language', '-l', type=str, default="java")
     parser.add_argument('--verbose', '-v', action="store_true")
+    parser.add_argument('--minimize', '-m', action="store_true")
     parser.add_argument('--aux', '-a', action="store_true")
     args = parser.parse_args()
 
@@ -350,8 +351,9 @@ if __name__ == '__main__':
         "summary": summary,
         "buggy_methods": buggy_method_ranks,
         "confidence": confidence,
-        "predictions": method_scores,
     }
+    if not args.minimize:
+        data["predictions"]: method_scores
 
     with open(args.output, "w") as f:
         json.dump(data, f, indent=4)

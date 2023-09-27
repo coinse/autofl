@@ -1,0 +1,245 @@
+{
+    "time": 1695234158.2451315,
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tests about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\nTitle: Diagnosis of test `testGenerateURLFragment`\nDetails: The test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+        },
+        {
+            "role": "user",
+            "content": "The test `['tornado.test.websocket_test.WebSocketTest.test_missing_websocket_key(self)']` failed.\nThe test looks like:\n\n```python\n196 :     def test_missing_websocket_key(self):\n197 :         response = self.fetch('/echo',\n198 :                               headers={'Connection': 'Upgrade',\n199 :                                        'Upgrade': 'WebSocket',\n200 :                                        'Sec-WebSocket-Version': '13'})\n201 :         self.assertEqual(response.code, 400) # error occurred here\n```\n\nIt failed with the following error message and call stack:\n\n```\nAssertionError: 500 != 400\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/tornado/tornado/testing.py\", line 118, in __call__\n    result = self.orig_method(*args, **kwargs)\n  File \"/home/user/BugsInPy/temp/projects/tornado/tornado/test/websocket_test.py\", line 201, in test_missing_websocket_key\n    self.assertEqual(response.code, 400)\n```\n\nStart by calling the `get_covered_packages` function."
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_covered_packages",
+                "arguments": "{}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_covered_packages",
+            "content": "[\"tornado.websocket\", \"tornado.httpclient\", \"tornado.httputil\", \"tornado.tcpserver\", \"tornado.options\", \"tornado.routing\", \"tornado.locale\", \"tornado.log\", \"tornado.locks\", \"tornado.http1connection\", \"tornado.process\", \"tornado.ioloop\", \"tornado.tcpclient\", \"tornado.iostream\", \"tornado.netutil\", \"tornado.gen\", \"tornado\", \"tornado.template\", \"tornado.httpserver\", \"tornado.concurrent\", \"tornado.queues\", \"tornado.util\", \"tornado.wsgi\", \"tornado.stack_context\", \"tornado.testing\", \"tornado.auth\", \"tornado.simple_httpclient\", \"tornado.web\"]"
+        },
+        {
+            "role": "assistant",
+            "content": "The `get_covered_packages` function has returned a list of packages that are covered by the failing test. Given that our test case originates from the `tornado.test.websocket_test` module, and the nature of the failed assertion (it expected a 400 HTTP response code but got a 500), we can focus on the package `tornado.websocket`.\n\nNext, use the `get_failing_tests_covered_classes` function to find out which classes in the `tornado.websocket` package are covered by the failing test.",
+            "function_call": {
+                "name": "get_failing_tests_covered_classes",
+                "arguments": "{\n\"package_name\": \"tornado.websocket\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_failing_tests_covered_classes",
+            "content": "[\"WebSocketClientConnection\", \"WebSocketHandler\", \"_PerMessageDeflateDecompressor\", \"_PerMessageDeflateCompressor\", \"WebSocketProtocol\", \"WebSocketProtocol13\"]"
+        },
+        {
+            "role": "assistant",
+            "content": "The `get_failing_tests_covered_classes` function returns a list of classes in the `tornado.websocket` package that are covered by the failing test.\n\nFrom this list, the `WebSocketHandler` class is likely the most related one to the problem experienced during the test, as this class is responsible for handling WebSocket requests and responses. \n\nLet's use the `get_failing_tests_covered_methods_for_class` function to see which methods in the `WebSocketHandler` class are covered by the failing test.",
+            "function_call": {
+                "name": "get_failing_tests_covered_methods_for_class",
+                "arguments": "{\n\"class_name\": \"tornado.websocket.WebSocketHandler\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_failing_tests_covered_methods_for_class",
+            "content": "[\".__init__\", \".get\", \".ping_interval\", \".ping_timeout\", \".max_message_size\", \".write_message\", \".select_subprotocol\", \".open\", \".close\", \".check_origin\", \".on_connection_close\", \"._break_cycles\", \".send_error\", \".get_websocket_protocol\", \"._attach_stream\"]"
+        },
+        {
+            "role": "assistant",
+            "content": "The `get_failing_tests_covered_methods_for_class` function returns a list of methods in the `WebSocketHandler` class that are covered by the failing test. \n\nConsidering the nature of the failed assertion and the expected behavior of the test (a WebSocket handshake, with a missing key in the request header, should lead to a 400 Bad Request response), the `.get` and `.send_error` methods are likely relevant. \n\nUse the `get_code_snippet` function to examine the source code of these methods. Start with `.get`.",
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\n\"signature\": \"tornado.websocket.WebSocketHandler.get\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"150 :     def get(self, *args, **kwargs):\\n151 :         self.open_args = args\\n152 :         self.open_kwargs = kwargs\\n153 : \\n154 :         # Upgrade header should be present and should be equal to WebSocket\\n155 :         if self.request.headers.get(\\\"Upgrade\\\", \\\"\\\").lower() != 'websocket':\\n156 :             self.set_status(400)\\n157 :             log_msg = \\\"Can \\\\\\\"Upgrade\\\\\\\" only to \\\\\\\"WebSocket\\\\\\\".\\\"\\n158 :             self.finish(log_msg)\\n159 :             gen_log.debug(log_msg)\\n160 :             return\\n161 : \\n162 :         # Connection header should be upgrade.\\n163 :         # Some proxy servers/load balancers\\n164 :         # might mess with it.\\n165 :         headers = self.request.headers\\n166 :         connection = map(lambda s: s.strip().lower(),\\n167 :                          headers.get(\\\"Connection\\\", \\\"\\\").split(\\\",\\\"))\\n168 :         if 'upgrade' not in connection:\\n169 :             self.set_status(400)\\n170 :             log_msg = \\\"\\\\\\\"Connection\\\\\\\" must be \\\\\\\"Upgrade\\\\\\\".\\\"\\n171 :             self.finish(log_msg)\\n172 :             gen_log.debug(log_msg)\\n173 :             return\\n174 : \\n175 :         # Handle WebSocket Origin naming convention differences\\n176 :         # The difference between version 8 and 13 is that in 8 the\\n177 :         # client sends a \\\"Sec-Websocket-Origin\\\" header and in 13 it's\\n178 :         # simply \\\"Origin\\\".\\n179 :         if \\\"Origin\\\" in self.request.headers:\\n180 :             origin = self.request.headers.get(\\\"Origin\\\")\\n181 :         else:\\n182 :             origin = self.request.headers.get(\\\"Sec-Websocket-Origin\\\", None)\\n183 : \\n184 :         # If there was an origin header, check to make sure it matches\\n185 :         # according to check_origin. When the origin is None, we assume it\\n186 :         # did not come from a browser and that it can be passed on.\\n187 :         if origin is not None and not self.check_origin(origin):\\n188 :             self.set_status(403)\\n189 :             log_msg = \\\"Cross origin websockets not allowed\\\"\\n190 :             self.finish(log_msg)\\n191 :             gen_log.debug(log_msg)\\n192 :             return\\n193 : \\n194 :         self.ws_connection = self.get_websocket_protocol()\\n195 :         if self.ws_connection:\\n196 :             self.ws_connection.accept_connection()\\n197 :         else:\\n198 :             self.set_status(426, \\\"Upgrade Required\\\")\\n199 :             self.set_header(\\\"Sec-WebSocket-Version\\\", \\\"7, 8, 13\\\")\\n200 :             self.finish()\""
+        },
+        {
+            "role": "assistant",
+            "content": "This is the code for the `.get` method of the `WebSocketHandler`:\n\n```python\n150 :     def get(self, *args, **kwargs):\n151 :         self.open_args = args\n152 :         self.open_kwargs = kwargs\n153 : \n154 :         if self.request.headers.get(\"Upgrade\", \"\").lower() != 'websocket':\n155 :             self.set_status(400)\n156 :             log_msg = \"Can \\\"Upgrade\\\" only to \\\"WebSocket\\\".\"\n157 :             self.finish(log_msg)\n158 :             gen_log.debug(log_msg)\n159 :             return\n160 : \n161 :         headers = self.request.headers\n162 :         connection = map(lambda s: s.strip().lower(),\n163 :                          headers.get(\"Connection\", \"\").split(\",\"))\n164 :         if 'upgrade' not in connection:\n165 :             self.set_status(400)\n166 :             log_msg = \"\\\"Connection\\\" must be \\\"Upgrade\\\".\"\n167 :             self.finish(log_msg)\n168 :             gen_log.debug(log_msg)\n169 :             return\n170 : \n171 :         if \"Origin\" in self.request.headers:\n172 :             origin = self.request.headers.get(\"Origin\")\n173 :         else:\n174 :             origin = self.request.headers.get(\"Sec-Websocket-Origin\", None)\n175 : \n176 :         if origin is not None and not self.check_origin(origin):\n177 :             self.set_status(403)\n178 :             log_msg = \"Cross origin websockets not allowed\"\n179 :             self.finish(log_msg)\n180 :             gen_log.debug(log_msg)\n181 :             return\n182 : \n183 :         self.ws_connection = self.get_websocket_protocol()\n184 :         if self.ws_connection:\n185 :             self.ws_connection.accept_connection()\n186 :         else:\n187 :             self.set_status(426, \"Upgrade Required\")\n188 :             self.set_header(\"Sec-WebSocket-Version\", \"7, 8, 13\")\n189 :             self.finish()\n```\n\nOn lines 154-159 and 164-169, we can see that if the necessary `Upgrade` and `Connection` headers are not present or incorrect, the server correctly returns a 400 Bad Request response.\n\nHowever, the missing `Sec-WebSocket-Key` header as per the test scenario is not explicitly checked, and the code still continues to execute.\n\nLet's examine the `.send_error` method next.",
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\n\"signature\": \"tornado.websocket.WebSocketHandler.send_error\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"448 :     def send_error(self, *args, **kwargs):\\n449 :         if self.stream is None:\\n450 :             super(WebSocketHandler, self).send_error(*args, **kwargs)\\n451 :         else:\\n452 :             # If we get an uncaught exception during the handshake,\\n453 :             # we have no choice but to abruptly close the connection.\\n454 :             # TODO: for uncaught exceptions after the handshake,\\n455 :             # we can close the connection more gracefully.\\n456 :             self.stream.close()\""
+        },
+        {
+            "role": "assistant",
+            "content": "This is the code for the `.send_error` method in the `WebSocketHandler` class:\n\n```python\n448 :     def send_error(self, *args, **kwargs):\n449 :         if self.stream is None:\n450 :             super(WebSocketHandler, self).send_error(*args, **kwargs)\n451 :         else:\n452 :             # If we get an uncaught exception during the handshake,\n453 :             # we have no choice but to abruptly close the connection.\n454 :             # TODO: for uncaught exceptions after the handshake,\n455 :             we can close the connection more gracefully.\n456 :             self.stream.close()\n```\n\nThis code says that if an uncaught exception occurs during the handshake (which is our case because the `Sec-WebSocket-Key` header is missing), the connection is abruptly closed. There is no clear indication that the status code is set to 500, but since this closing of the connection is bundled under an error condition and not a proper WebSocket handshake rejection, it could be that this code path indirectly leads to a 500 response due to an unhandled exception.\n\nFrom this analysis, it appears the core issue is that there's no explicit handling for a missing `Sec-WebSocket-Key` header during the handshake in the `.get` method of the `WebSocketHandler` class. The server should return a 400 Bad Request in such a situation, but since the case is not handled, the execution flow reaches an abnormal end, and most likely, an exception is thrown, leading to a 500 Internal Server Error response.\n\n# Diagnosis\nThe test `test_missing_websocket_key(self)` from class `tornado.test.websocket_test.WebSocketTest` checks whether a missing `Sec-WebSocket-Key` header in a WebSocket handshake HTTP request results in a 400 Bad Request response. The test fails because it receives a 500 Internal Server Error.\n\nThe bug originates from the `.get` method of the `tornado.websocket.WebSocketHandler` class, where the handling for this specific case (missing `Sec-WebSocket-Key` header) is absent. Therefore, instead of a regular WebSocket handshake rejection (with a 400 response), the process hits an unexpected scenario and seemingly throws an exception, causing the server to respond with a 500 error. The `.send_error` method of `WebSocketHandler` also contributes to this issue by abruptly closing the connection on uncaught handshake exceptions, rather than setting an error status."
+        },
+        {
+            "role": "user",
+            "content": "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). "
+        },
+        {
+            "role": "assistant",
+            "content": "tornado.websocket.WebSocketHandler.get(self, *args, **kwargs)\ntornado.websocket.WebSocketHandler.send_error(self, *args, **kwargs)"
+        }
+    ],
+    "interaction_records": {
+        "step_histories": [
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4"
+                ],
+                "response_message": "m5"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6"
+                ],
+                "response_message": "m7"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8"
+                ],
+                "response_message": "m9"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10"
+                ],
+                "response_message": "m11"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8",
+                    "m9",
+                    "m10",
+                    "m11",
+                    "m12"
+                ],
+                "response_message": "m13"
+            }
+        ],
+        "mid_to_message": {
+            "m1": {
+                "role": "system",
+                "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tests about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\nTitle: Diagnosis of test `testGenerateURLFragment`\nDetails: The test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+            },
+            "m2": {
+                "role": "user",
+                "content": "The test `['tornado.test.websocket_test.WebSocketTest.test_missing_websocket_key(self)']` failed.\nThe test looks like:\n\n```python\n196 :     def test_missing_websocket_key(self):\n197 :         response = self.fetch('/echo',\n198 :                               headers={'Connection': 'Upgrade',\n199 :                                        'Upgrade': 'WebSocket',\n200 :                                        'Sec-WebSocket-Version': '13'})\n201 :         self.assertEqual(response.code, 400) # error occurred here\n```\n\nIt failed with the following error message and call stack:\n\n```\nAssertionError: 500 != 400\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/tornado/tornado/testing.py\", line 118, in __call__\n    result = self.orig_method(*args, **kwargs)\n  File \"/home/user/BugsInPy/temp/projects/tornado/tornado/test/websocket_test.py\", line 201, in test_missing_websocket_key\n    self.assertEqual(response.code, 400)\n```\n\nStart by calling the `get_covered_packages` function."
+            },
+            "m3": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_covered_packages",
+                    "arguments": "{}"
+                }
+            },
+            "m4": {
+                "role": "function",
+                "name": "get_covered_packages",
+                "content": "[\"tornado.websocket\", \"tornado.httpclient\", \"tornado.httputil\", \"tornado.tcpserver\", \"tornado.options\", \"tornado.routing\", \"tornado.locale\", \"tornado.log\", \"tornado.locks\", \"tornado.http1connection\", \"tornado.process\", \"tornado.ioloop\", \"tornado.tcpclient\", \"tornado.iostream\", \"tornado.netutil\", \"tornado.gen\", \"tornado\", \"tornado.template\", \"tornado.httpserver\", \"tornado.concurrent\", \"tornado.queues\", \"tornado.util\", \"tornado.wsgi\", \"tornado.stack_context\", \"tornado.testing\", \"tornado.auth\", \"tornado.simple_httpclient\", \"tornado.web\"]"
+            },
+            "m5": {
+                "role": "assistant",
+                "content": "The `get_covered_packages` function has returned a list of packages that are covered by the failing test. Given that our test case originates from the `tornado.test.websocket_test` module, and the nature of the failed assertion (it expected a 400 HTTP response code but got a 500), we can focus on the package `tornado.websocket`.\n\nNext, use the `get_failing_tests_covered_classes` function to find out which classes in the `tornado.websocket` package are covered by the failing test.",
+                "function_call": {
+                    "name": "get_failing_tests_covered_classes",
+                    "arguments": "{\n\"package_name\": \"tornado.websocket\"\n}"
+                }
+            },
+            "m6": {
+                "role": "function",
+                "name": "get_failing_tests_covered_classes",
+                "content": "[\"WebSocketClientConnection\", \"WebSocketHandler\", \"_PerMessageDeflateDecompressor\", \"_PerMessageDeflateCompressor\", \"WebSocketProtocol\", \"WebSocketProtocol13\"]"
+            },
+            "m7": {
+                "role": "assistant",
+                "content": "The `get_failing_tests_covered_classes` function returns a list of classes in the `tornado.websocket` package that are covered by the failing test.\n\nFrom this list, the `WebSocketHandler` class is likely the most related one to the problem experienced during the test, as this class is responsible for handling WebSocket requests and responses. \n\nLet's use the `get_failing_tests_covered_methods_for_class` function to see which methods in the `WebSocketHandler` class are covered by the failing test.",
+                "function_call": {
+                    "name": "get_failing_tests_covered_methods_for_class",
+                    "arguments": "{\n\"class_name\": \"tornado.websocket.WebSocketHandler\"\n}"
+                }
+            },
+            "m8": {
+                "role": "function",
+                "name": "get_failing_tests_covered_methods_for_class",
+                "content": "[\".__init__\", \".get\", \".ping_interval\", \".ping_timeout\", \".max_message_size\", \".write_message\", \".select_subprotocol\", \".open\", \".close\", \".check_origin\", \".on_connection_close\", \"._break_cycles\", \".send_error\", \".get_websocket_protocol\", \"._attach_stream\"]"
+            },
+            "m9": {
+                "role": "assistant",
+                "content": "The `get_failing_tests_covered_methods_for_class` function returns a list of methods in the `WebSocketHandler` class that are covered by the failing test. \n\nConsidering the nature of the failed assertion and the expected behavior of the test (a WebSocket handshake, with a missing key in the request header, should lead to a 400 Bad Request response), the `.get` and `.send_error` methods are likely relevant. \n\nUse the `get_code_snippet` function to examine the source code of these methods. Start with `.get`.",
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\n\"signature\": \"tornado.websocket.WebSocketHandler.get\"\n}"
+                }
+            },
+            "m10": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"150 :     def get(self, *args, **kwargs):\\n151 :         self.open_args = args\\n152 :         self.open_kwargs = kwargs\\n153 : \\n154 :         # Upgrade header should be present and should be equal to WebSocket\\n155 :         if self.request.headers.get(\\\"Upgrade\\\", \\\"\\\").lower() != 'websocket':\\n156 :             self.set_status(400)\\n157 :             log_msg = \\\"Can \\\\\\\"Upgrade\\\\\\\" only to \\\\\\\"WebSocket\\\\\\\".\\\"\\n158 :             self.finish(log_msg)\\n159 :             gen_log.debug(log_msg)\\n160 :             return\\n161 : \\n162 :         # Connection header should be upgrade.\\n163 :         # Some proxy servers/load balancers\\n164 :         # might mess with it.\\n165 :         headers = self.request.headers\\n166 :         connection = map(lambda s: s.strip().lower(),\\n167 :                          headers.get(\\\"Connection\\\", \\\"\\\").split(\\\",\\\"))\\n168 :         if 'upgrade' not in connection:\\n169 :             self.set_status(400)\\n170 :             log_msg = \\\"\\\\\\\"Connection\\\\\\\" must be \\\\\\\"Upgrade\\\\\\\".\\\"\\n171 :             self.finish(log_msg)\\n172 :             gen_log.debug(log_msg)\\n173 :             return\\n174 : \\n175 :         # Handle WebSocket Origin naming convention differences\\n176 :         # The difference between version 8 and 13 is that in 8 the\\n177 :         # client sends a \\\"Sec-Websocket-Origin\\\" header and in 13 it's\\n178 :         # simply \\\"Origin\\\".\\n179 :         if \\\"Origin\\\" in self.request.headers:\\n180 :             origin = self.request.headers.get(\\\"Origin\\\")\\n181 :         else:\\n182 :             origin = self.request.headers.get(\\\"Sec-Websocket-Origin\\\", None)\\n183 : \\n184 :         # If there was an origin header, check to make sure it matches\\n185 :         # according to check_origin. When the origin is None, we assume it\\n186 :         # did not come from a browser and that it can be passed on.\\n187 :         if origin is not None and not self.check_origin(origin):\\n188 :             self.set_status(403)\\n189 :             log_msg = \\\"Cross origin websockets not allowed\\\"\\n190 :             self.finish(log_msg)\\n191 :             gen_log.debug(log_msg)\\n192 :             return\\n193 : \\n194 :         self.ws_connection = self.get_websocket_protocol()\\n195 :         if self.ws_connection:\\n196 :             self.ws_connection.accept_connection()\\n197 :         else:\\n198 :             self.set_status(426, \\\"Upgrade Required\\\")\\n199 :             self.set_header(\\\"Sec-WebSocket-Version\\\", \\\"7, 8, 13\\\")\\n200 :             self.finish()\""
+            },
+            "m11": {
+                "role": "assistant",
+                "content": "This is the code for the `.get` method of the `WebSocketHandler`:\n\n```python\n150 :     def get(self, *args, **kwargs):\n151 :         self.open_args = args\n152 :         self.open_kwargs = kwargs\n153 : \n154 :         if self.request.headers.get(\"Upgrade\", \"\").lower() != 'websocket':\n155 :             self.set_status(400)\n156 :             log_msg = \"Can \\\"Upgrade\\\" only to \\\"WebSocket\\\".\"\n157 :             self.finish(log_msg)\n158 :             gen_log.debug(log_msg)\n159 :             return\n160 : \n161 :         headers = self.request.headers\n162 :         connection = map(lambda s: s.strip().lower(),\n163 :                          headers.get(\"Connection\", \"\").split(\",\"))\n164 :         if 'upgrade' not in connection:\n165 :             self.set_status(400)\n166 :             log_msg = \"\\\"Connection\\\" must be \\\"Upgrade\\\".\"\n167 :             self.finish(log_msg)\n168 :             gen_log.debug(log_msg)\n169 :             return\n170 : \n171 :         if \"Origin\" in self.request.headers:\n172 :             origin = self.request.headers.get(\"Origin\")\n173 :         else:\n174 :             origin = self.request.headers.get(\"Sec-Websocket-Origin\", None)\n175 : \n176 :         if origin is not None and not self.check_origin(origin):\n177 :             self.set_status(403)\n178 :             log_msg = \"Cross origin websockets not allowed\"\n179 :             self.finish(log_msg)\n180 :             gen_log.debug(log_msg)\n181 :             return\n182 : \n183 :         self.ws_connection = self.get_websocket_protocol()\n184 :         if self.ws_connection:\n185 :             self.ws_connection.accept_connection()\n186 :         else:\n187 :             self.set_status(426, \"Upgrade Required\")\n188 :             self.set_header(\"Sec-WebSocket-Version\", \"7, 8, 13\")\n189 :             self.finish()\n```\n\nOn lines 154-159 and 164-169, we can see that if the necessary `Upgrade` and `Connection` headers are not present or incorrect, the server correctly returns a 400 Bad Request response.\n\nHowever, the missing `Sec-WebSocket-Key` header as per the test scenario is not explicitly checked, and the code still continues to execute.\n\nLet's examine the `.send_error` method next.",
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\n\"signature\": \"tornado.websocket.WebSocketHandler.send_error\"\n}"
+                }
+            },
+            "m12": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"448 :     def send_error(self, *args, **kwargs):\\n449 :         if self.stream is None:\\n450 :             super(WebSocketHandler, self).send_error(*args, **kwargs)\\n451 :         else:\\n452 :             # If we get an uncaught exception during the handshake,\\n453 :             # we have no choice but to abruptly close the connection.\\n454 :             # TODO: for uncaught exceptions after the handshake,\\n455 :             # we can close the connection more gracefully.\\n456 :             self.stream.close()\""
+            },
+            "m13": {
+                "role": "assistant",
+                "content": "This is the code for the `.send_error` method in the `WebSocketHandler` class:\n\n```python\n448 :     def send_error(self, *args, **kwargs):\n449 :         if self.stream is None:\n450 :             super(WebSocketHandler, self).send_error(*args, **kwargs)\n451 :         else:\n452 :             # If we get an uncaught exception during the handshake,\n453 :             # we have no choice but to abruptly close the connection.\n454 :             # TODO: for uncaught exceptions after the handshake,\n455 :             we can close the connection more gracefully.\n456 :             self.stream.close()\n```\n\nThis code says that if an uncaught exception occurs during the handshake (which is our case because the `Sec-WebSocket-Key` header is missing), the connection is abruptly closed. There is no clear indication that the status code is set to 500, but since this closing of the connection is bundled under an error condition and not a proper WebSocket handshake rejection, it could be that this code path indirectly leads to a 500 response due to an unhandled exception.\n\nFrom this analysis, it appears the core issue is that there's no explicit handling for a missing `Sec-WebSocket-Key` header during the handshake in the `.get` method of the `WebSocketHandler` class. The server should return a 400 Bad Request in such a situation, but since the case is not handled, the execution flow reaches an abnormal end, and most likely, an exception is thrown, leading to a 500 Internal Server Error response.\n\n# Diagnosis\nThe test `test_missing_websocket_key(self)` from class `tornado.test.websocket_test.WebSocketTest` checks whether a missing `Sec-WebSocket-Key` header in a WebSocket handshake HTTP request results in a 400 Bad Request response. The test fails because it receives a 500 Internal Server Error.\n\nThe bug originates from the `.get` method of the `tornado.websocket.WebSocketHandler` class, where the handling for this specific case (missing `Sec-WebSocket-Key` header) is absent. Therefore, instead of a regular WebSocket handshake rejection (with a 400 response), the process hits an unexpected scenario and seemingly throws an exception, causing the server to respond with a 500 error. The `.send_error` method of `WebSocketHandler` also contributes to this issue by abruptly closing the connection on uncaught handshake exceptions, rather than setting an error status."
+            }
+        }
+    },
+    "buggy_methods": {
+        "tornado.websocket.WebSocketProtocol13.accept_connection(self)": {
+            "is_found": false,
+            "sbfl_rank": 467,
+            "matching_answer": []
+        }
+    }
+}

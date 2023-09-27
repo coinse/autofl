@@ -1,0 +1,168 @@
+{
+    "time": 1694868573.8285072,
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tests about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\nTitle: Diagnosis of test `testGenerateURLFragment`\nDetails: The test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+        },
+        {
+            "role": "user",
+            "content": "The test `['test.test_utils.TestUtil.test_js_to_json_edgecases(self)']` failed.\nThe test looks like:\n\n```python\n768 :     def test_js_to_json_edgecases(self):\n769 :         on = js_to_json(\"{abc_def:'1\\\\'\\\\\\\\2\\\\\\\\\\\\'3\\\"4'}\")\n770 :         self.assertEqual(json.loads(on), {\"abc_def\": \"1'\\\\2\\\\'3\\\"4\"})\n772 :         on = js_to_json('{\"abc\": true}')\n773 :         self.assertEqual(json.loads(on), {'abc': True})\n775 :         # Ignore JavaScript code as well\n776 :         on = js_to_json('''{\n777 :             \"x\": 1,\n778 :             y: \"a\",\n779 :             z: some.code\n780 :         }''')\n781 :         d = json.loads(on)\n782 :         self.assertEqual(d['x'], 1)\n785 :         on = js_to_json('[\"abc\", \"def\",]')\n786 :         self.assertEqual(json.loads(on), ['abc', 'def'])\n788 :         on = js_to_json('{\"abc\": \"def\",}')\n789 :         self.assertEqual(json.loads(on), {'abc': 'def'})\n791 :         on = js_to_json('{ 0: /* \" \\n */ \",]\" , }')\n792 :         self.assertEqual(json.loads(on), {'0': ',]'})\n794 :         on = js_to_json('{ 0: // comment\\n1 }')\n795 :         self.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\n\nIt failed with the following error message and call stack:\n\n```\njson.decoder.JSONDecodeError: Expecting value: line 1 column 8 (char 7)\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_utils.py\", line 795, in test_js_to_json_edgecases\n    self.assertEqual(json.loads(on), {'0': 1})\n  File \"/opt/conda/lib/python3.10/json/__init__.py\", line 346, in loads\n    return _default_decoder.decode(s)\n  File \"/opt/conda/lib/python3.10/json/decoder.py\", line 337, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n  File \"/opt/conda/lib/python3.10/json/decoder.py\", line 355, in raw_decode\n    raise JSONDecodeError(\"Expecting value\", s, err.value) from None\n```\n\nStart by calling the `get_covered_packages` function."
+        },
+        {
+            "role": "assistant",
+            "content": null,
+            "function_call": {
+                "name": "get_covered_packages",
+                "arguments": "{}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_covered_packages",
+            "content": "\"Unfortunately, there are too many packages to fit in the context length. Please try a different function.\""
+        },
+        {
+            "role": "assistant",
+            "content": "OK, let's try to get the classes covered by this test. Use the `get_failing_tests_covered_classes` function with the package name 'youtube_dl.utils'.",
+            "function_call": {
+                "name": "get_failing_tests_covered_classes",
+                "arguments": "{\n  \"package_name\": \"youtube_dl.utils\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_failing_tests_covered_classes",
+            "content": "[\"PagedList\", \"HEADRequest\", \"ISO639Utils\", \"DownloadError\", \"YoutubeDLHTTPSHandler\", \"YoutubeDLHandler\", \"ISO3166Utils\", \"OnDemandPagedList\", \"PerRequestProxyHandler\", \"locked_file\", \"PUTRequest\", \"HTMLAttributeParser\", \"DateRange\", \"ContentTooShortError\", \"InAdvancePagedList\", \"ExtractorError\", \"PostProcessingError\", \"YoutubeDLCookieProcessor\", \"XAttrMetadataError\", \"UnsupportedError\"]"
+        },
+        {
+            "role": "assistant",
+            "content": "The function `js_to_json` is likely located in the `youtube_dl.utils` package. Let's retrieve its source code using `get_code_snippet` function with the signature `youtube_dl.utils.js_to_json`.",
+            "function_call": {
+                "name": "get_code_snippet",
+                "arguments": "{\n  \"signature\": \"youtube_dl.utils.js_to_json\"\n}"
+            }
+        },
+        {
+            "role": "function",
+            "name": "get_code_snippet",
+            "content": "\"2105 : def js_to_json(code):\\n2106 :     def fix_kv(m):\\n2107 :         v = m.group(0)\\n2108 :         if v in ('true', 'false', 'null'):\\n2109 :             return v\\n2110 :         elif v.startswith('/*') or v == ',':\\n2111 :             return \\\"\\\"\\n2112 : \\n2113 :         if v[0] in (\\\"'\\\", '\\\"'):\\n2114 :             v = re.sub(r'(?s)\\\\\\\\.|\\\"', lambda m: {\\n2115 :                 '\\\"': '\\\\\\\\\\\"',\\n2116 :                 \\\"\\\\\\\\'\\\": \\\"'\\\",\\n2117 :                 '\\\\\\\\\\\\n': '',\\n2118 :                 '\\\\\\\\x': '\\\\\\\\u00',\\n2119 :             }.get(m.group(0), m.group(0)), v[1:-1])\\n2120 : \\n2121 :         INTEGER_TABLE = (\\n2122 :             (r'^(0[xX][0-9a-fA-F]+)\\\\s*:?$', 16),\\n2123 :             (r'^(0+[0-7]+)\\\\s*:?$', 8),\\n2124 :         )\\n2125 : \\n2126 :         for regex, base in INTEGER_TABLE:\\n2127 :             im = re.match(regex, v)\\n2128 :             if im:\\n2129 :                 i = int(im.group(1), base)\\n2130 :                 return '\\\"%d\\\":' % i if v.endswith(':') else '%d' % i\\n2131 : \\n2132 :         return '\\\"%s\\\"' % v\\n2133 : \\n2134 :     return re.sub(r'''(?sx)\\n2135 :         \\\"(?:[^\\\"\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nurtbfx/\\\\n]))*[^\\\"\\\\\\\\]*\\\"|\\n2136 :         '(?:[^'\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nurtbfx/\\\\n]))*[^'\\\\\\\\]*'|\\n2137 :         /\\\\*.*?\\\\*/|,(?=\\\\s*[\\\\]}])|\\n2138 :         [a-zA-Z_][.a-zA-Z_0-9]*|\\n2139 :         \\\\b(?:0[xX][0-9a-fA-F]+|0+[0-7]+)(?:\\\\s*:)?|\\n2140 :         [0-9]+(?=\\\\s*:)\\n2141 :         ''', fix_kv, code)\""
+        },
+        {
+            "role": "assistant",
+            "content": "Here is the source code for the `js_to_json` method:\n\n```python\n2105 : def js_to_json(code):\n2106 :     def fix_kv(m):\n2107 :         v = m.group(0)\n2108 :         if v in ('true', 'false', 'null'):\n2109 :             return v\n2110 :         elif v.startswith('/*') or v == ',':\n2111 :             return \"\"\n2112 : \n2113 :         if v[0] in (\"'\", '\"'):\n2114 :             v = re.sub(r'(?s)\\\\.|\"', lambda m: {\n2115 :                 '\"': '\\\\\\\\\"',\n2116 :                 \"\\\\'\": \"'\",\n2117 :                 '\\\\\\\\n': '',\n2118 :                 '\\\\\\\\x': '\\\\\\\\u00',\n2119 :             }.get(m.group(0), m.group(0)), v[1:-1])\n2120 : \n2121 :         INTEGER_TABLE = (\n2122 :             (r'^(0[xX][0-9a-fA-F]+)\\s*:?$', 16),\n2123 :             (r'^(0+[0-7]+)\\s*:?$', 8),\n2124 :         )\n2125 : \n2126 :         for regex, base in INTEGER_TABLE:\n2127 :             im = re.match(regex, v)\n2128 :             if im:\n2129 :                 i = int(im.group(1), base)\n2130 :                 return '\"%d\":' % i if v.endswith(':') else '%d' % i\n2131 : \n2132 :         return '\"%s\"' % v\n2133 : \n2134 :     return re.sub(r'''(?sx)\n2135 :         \"(?:[^\"\\\\]*(?:\\\\\\\\|\\\\['\"nurtbfx/\\\\n]))*[^\"\\\\]*\"|\n2136 :         '(?:[^'\\\\]*(?:\\\\\\\\|\\\\['\"nurtbfx/\\\\n]))*[^'\\\\]*'|\n2137 :         /\\*.*?\\*/|,(?=\\s*[\\]}])|\n2138 :         [a-zA-Z_][.a-zA-Z_0-9]*|\n2139 :         \\b(?:0[xX][0-9a-fA-F]+|0+[0-7]+)(?:\\s*:)?|\n2140 :         [0-9]+(?=\\s*:)\n2141 :         ''', fix_kv, code)\n```\nThis method takes in a JavaScript object notation (JSON) string and attempts to convert it into a Python `dict`.\n\nLooking at the error and test case:\n\n```\njson.decoder.JSONDecodeError: Expecting value: line 1 column 8 (char 7)\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_utils.py\", line 795, in test_js_to_json_edgecases\n    self.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\nThe test case is:\n```python\non = js_to_json('{ 0: // comment\\n1 }')\nself.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\n\nThe error occurs in the following part of the code:\n```python\nelif v.startswith('/*') or v == ',':\n2111 :             return \"\"\n```\n\nThis part of the code removes any comments or trailing commas from the JSON string. It seems that the issue lies with the handling of JavaScript single-line comments (`// comment`). \n\nThe string `'{ 0: // comment\\n1 }'` definitely contains a JavaScript comment. The regular expression in the `elif v.startswith('/*')` doesn't catch JavaScript single-line comments, and thus incorrectly returns an empty string leading to a JSON decoding error. Hence, the problem seems to be because `js_to_json` cannot handle JavaScript single-line comments correctly. \n\nThe necessary fix would be to handle JavaScript single-line comments properly in the `js_to_json` function. Specifically, the regular expression in `re.sub` needs to be updated to handle JavaScript comments."
+        },
+        {
+            "role": "user",
+            "content": "Based on the available information, provide the signatures of the most likely culprit methods for the bug. Your answer will be processed automatically, so make sure to only answer with the accurate signatures of all likely culprits (in `ClassName.MethodName(ArgType1, ArgType2, ...)` format), without commentary (one per line). "
+        },
+        {
+            "role": "assistant",
+            "content": "youtube_dl.utils.js_to_json(str)"
+        }
+    ],
+    "interaction_records": {
+        "step_histories": [
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4"
+                ],
+                "response_message": "m5"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6"
+                ],
+                "response_message": "m7"
+            },
+            {
+                "prompt_messages": [
+                    "m1",
+                    "m2",
+                    "m3",
+                    "m4",
+                    "m5",
+                    "m6",
+                    "m7",
+                    "m8"
+                ],
+                "response_message": "m9"
+            }
+        ],
+        "mid_to_message": {
+            "m1": {
+                "role": "system",
+                "content": "You are a debugging assistant. You will be presented with a failing test, and tools (functions) to access the source code of the system under test (SUT). Your task is to provide a step-by-step explanation of how the bug occurred, based on the failing test and the information you retrieved using tests about the SUT. You will be given 9 chances to interact with functions to gather relevant information. An example answer would look like follows.\n\nTitle: Diagnosis of test `testGenerateURLFragment`\nDetails: The test `testGenerateURLFragment` checks whether HTML entities such as `&quot;` are correctly escaped to their corresponding character by the `StandardToolTipTagFragmentGenerator.generateToolTipFragment` method. However, the test failure indicates that this is not the case. Following the execution path, we find that `StandardToolTipTagFragmentGenerator.generateToolTipFragment` is not escaping any HTML code; instead, it is using its input `toolTipText` as is. Consequently, un-escaped strings are being returned, which leads to the error demonstrated by the test.\n\nAfter providing this diagnosis, you will be prompted to suggest which methods would be the best locations to be fixed. The answers should be in the form of `ClassName.MethodName(ArgType1, ArgType2, ...)` without commentary (one per line), as your answer will be automatically processed before finally being presented to the user."
+            },
+            "m2": {
+                "role": "user",
+                "content": "The test `['test.test_utils.TestUtil.test_js_to_json_edgecases(self)']` failed.\nThe test looks like:\n\n```python\n768 :     def test_js_to_json_edgecases(self):\n769 :         on = js_to_json(\"{abc_def:'1\\\\'\\\\\\\\2\\\\\\\\\\\\'3\\\"4'}\")\n770 :         self.assertEqual(json.loads(on), {\"abc_def\": \"1'\\\\2\\\\'3\\\"4\"})\n772 :         on = js_to_json('{\"abc\": true}')\n773 :         self.assertEqual(json.loads(on), {'abc': True})\n775 :         # Ignore JavaScript code as well\n776 :         on = js_to_json('''{\n777 :             \"x\": 1,\n778 :             y: \"a\",\n779 :             z: some.code\n780 :         }''')\n781 :         d = json.loads(on)\n782 :         self.assertEqual(d['x'], 1)\n785 :         on = js_to_json('[\"abc\", \"def\",]')\n786 :         self.assertEqual(json.loads(on), ['abc', 'def'])\n788 :         on = js_to_json('{\"abc\": \"def\",}')\n789 :         self.assertEqual(json.loads(on), {'abc': 'def'})\n791 :         on = js_to_json('{ 0: /* \" \\n */ \",]\" , }')\n792 :         self.assertEqual(json.loads(on), {'0': ',]'})\n794 :         on = js_to_json('{ 0: // comment\\n1 }')\n795 :         self.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\n\nIt failed with the following error message and call stack:\n\n```\njson.decoder.JSONDecodeError: Expecting value: line 1 column 8 (char 7)\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_utils.py\", line 795, in test_js_to_json_edgecases\n    self.assertEqual(json.loads(on), {'0': 1})\n  File \"/opt/conda/lib/python3.10/json/__init__.py\", line 346, in loads\n    return _default_decoder.decode(s)\n  File \"/opt/conda/lib/python3.10/json/decoder.py\", line 337, in decode\n    obj, end = self.raw_decode(s, idx=_w(s, 0).end())\n  File \"/opt/conda/lib/python3.10/json/decoder.py\", line 355, in raw_decode\n    raise JSONDecodeError(\"Expecting value\", s, err.value) from None\n```\n\nStart by calling the `get_covered_packages` function."
+            },
+            "m3": {
+                "role": "assistant",
+                "content": null,
+                "function_call": {
+                    "name": "get_covered_packages",
+                    "arguments": "{}"
+                }
+            },
+            "m4": {
+                "role": "function",
+                "name": "get_covered_packages",
+                "content": "\"Unfortunately, there are too many packages to fit in the context length. Please try a different function.\""
+            },
+            "m5": {
+                "role": "assistant",
+                "content": "OK, let's try to get the classes covered by this test. Use the `get_failing_tests_covered_classes` function with the package name 'youtube_dl.utils'.",
+                "function_call": {
+                    "name": "get_failing_tests_covered_classes",
+                    "arguments": "{\n  \"package_name\": \"youtube_dl.utils\"\n}"
+                }
+            },
+            "m6": {
+                "role": "function",
+                "name": "get_failing_tests_covered_classes",
+                "content": "[\"PagedList\", \"HEADRequest\", \"ISO639Utils\", \"DownloadError\", \"YoutubeDLHTTPSHandler\", \"YoutubeDLHandler\", \"ISO3166Utils\", \"OnDemandPagedList\", \"PerRequestProxyHandler\", \"locked_file\", \"PUTRequest\", \"HTMLAttributeParser\", \"DateRange\", \"ContentTooShortError\", \"InAdvancePagedList\", \"ExtractorError\", \"PostProcessingError\", \"YoutubeDLCookieProcessor\", \"XAttrMetadataError\", \"UnsupportedError\"]"
+            },
+            "m7": {
+                "role": "assistant",
+                "content": "The function `js_to_json` is likely located in the `youtube_dl.utils` package. Let's retrieve its source code using `get_code_snippet` function with the signature `youtube_dl.utils.js_to_json`.",
+                "function_call": {
+                    "name": "get_code_snippet",
+                    "arguments": "{\n  \"signature\": \"youtube_dl.utils.js_to_json\"\n}"
+                }
+            },
+            "m8": {
+                "role": "function",
+                "name": "get_code_snippet",
+                "content": "\"2105 : def js_to_json(code):\\n2106 :     def fix_kv(m):\\n2107 :         v = m.group(0)\\n2108 :         if v in ('true', 'false', 'null'):\\n2109 :             return v\\n2110 :         elif v.startswith('/*') or v == ',':\\n2111 :             return \\\"\\\"\\n2112 : \\n2113 :         if v[0] in (\\\"'\\\", '\\\"'):\\n2114 :             v = re.sub(r'(?s)\\\\\\\\.|\\\"', lambda m: {\\n2115 :                 '\\\"': '\\\\\\\\\\\"',\\n2116 :                 \\\"\\\\\\\\'\\\": \\\"'\\\",\\n2117 :                 '\\\\\\\\\\\\n': '',\\n2118 :                 '\\\\\\\\x': '\\\\\\\\u00',\\n2119 :             }.get(m.group(0), m.group(0)), v[1:-1])\\n2120 : \\n2121 :         INTEGER_TABLE = (\\n2122 :             (r'^(0[xX][0-9a-fA-F]+)\\\\s*:?$', 16),\\n2123 :             (r'^(0+[0-7]+)\\\\s*:?$', 8),\\n2124 :         )\\n2125 : \\n2126 :         for regex, base in INTEGER_TABLE:\\n2127 :             im = re.match(regex, v)\\n2128 :             if im:\\n2129 :                 i = int(im.group(1), base)\\n2130 :                 return '\\\"%d\\\":' % i if v.endswith(':') else '%d' % i\\n2131 : \\n2132 :         return '\\\"%s\\\"' % v\\n2133 : \\n2134 :     return re.sub(r'''(?sx)\\n2135 :         \\\"(?:[^\\\"\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nurtbfx/\\\\n]))*[^\\\"\\\\\\\\]*\\\"|\\n2136 :         '(?:[^'\\\\\\\\]*(?:\\\\\\\\\\\\\\\\|\\\\\\\\['\\\"nurtbfx/\\\\n]))*[^'\\\\\\\\]*'|\\n2137 :         /\\\\*.*?\\\\*/|,(?=\\\\s*[\\\\]}])|\\n2138 :         [a-zA-Z_][.a-zA-Z_0-9]*|\\n2139 :         \\\\b(?:0[xX][0-9a-fA-F]+|0+[0-7]+)(?:\\\\s*:)?|\\n2140 :         [0-9]+(?=\\\\s*:)\\n2141 :         ''', fix_kv, code)\""
+            },
+            "m9": {
+                "role": "assistant",
+                "content": "Here is the source code for the `js_to_json` method:\n\n```python\n2105 : def js_to_json(code):\n2106 :     def fix_kv(m):\n2107 :         v = m.group(0)\n2108 :         if v in ('true', 'false', 'null'):\n2109 :             return v\n2110 :         elif v.startswith('/*') or v == ',':\n2111 :             return \"\"\n2112 : \n2113 :         if v[0] in (\"'\", '\"'):\n2114 :             v = re.sub(r'(?s)\\\\.|\"', lambda m: {\n2115 :                 '\"': '\\\\\\\\\"',\n2116 :                 \"\\\\'\": \"'\",\n2117 :                 '\\\\\\\\n': '',\n2118 :                 '\\\\\\\\x': '\\\\\\\\u00',\n2119 :             }.get(m.group(0), m.group(0)), v[1:-1])\n2120 : \n2121 :         INTEGER_TABLE = (\n2122 :             (r'^(0[xX][0-9a-fA-F]+)\\s*:?$', 16),\n2123 :             (r'^(0+[0-7]+)\\s*:?$', 8),\n2124 :         )\n2125 : \n2126 :         for regex, base in INTEGER_TABLE:\n2127 :             im = re.match(regex, v)\n2128 :             if im:\n2129 :                 i = int(im.group(1), base)\n2130 :                 return '\"%d\":' % i if v.endswith(':') else '%d' % i\n2131 : \n2132 :         return '\"%s\"' % v\n2133 : \n2134 :     return re.sub(r'''(?sx)\n2135 :         \"(?:[^\"\\\\]*(?:\\\\\\\\|\\\\['\"nurtbfx/\\\\n]))*[^\"\\\\]*\"|\n2136 :         '(?:[^'\\\\]*(?:\\\\\\\\|\\\\['\"nurtbfx/\\\\n]))*[^'\\\\]*'|\n2137 :         /\\*.*?\\*/|,(?=\\s*[\\]}])|\n2138 :         [a-zA-Z_][.a-zA-Z_0-9]*|\n2139 :         \\b(?:0[xX][0-9a-fA-F]+|0+[0-7]+)(?:\\s*:)?|\n2140 :         [0-9]+(?=\\s*:)\n2141 :         ''', fix_kv, code)\n```\nThis method takes in a JavaScript object notation (JSON) string and attempts to convert it into a Python `dict`.\n\nLooking at the error and test case:\n\n```\njson.decoder.JSONDecodeError: Expecting value: line 1 column 8 (char 7)\nTraceback (most recent call last):\n  File \"/home/user/BugsInPy/temp/projects/youtube-dl/test/test_utils.py\", line 795, in test_js_to_json_edgecases\n    self.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\nThe test case is:\n```python\non = js_to_json('{ 0: // comment\\n1 }')\nself.assertEqual(json.loads(on), {'0': 1}) # error occurred here\n```\n\nThe error occurs in the following part of the code:\n```python\nelif v.startswith('/*') or v == ',':\n2111 :             return \"\"\n```\n\nThis part of the code removes any comments or trailing commas from the JSON string. It seems that the issue lies with the handling of JavaScript single-line comments (`// comment`). \n\nThe string `'{ 0: // comment\\n1 }'` definitely contains a JavaScript comment. The regular expression in the `elif v.startswith('/*')` doesn't catch JavaScript single-line comments, and thus incorrectly returns an empty string leading to a JSON decoding error. Hence, the problem seems to be because `js_to_json` cannot handle JavaScript single-line comments correctly. \n\nThe necessary fix would be to handle JavaScript single-line comments properly in the `js_to_json` function. Specifically, the regular expression in `re.sub` needs to be updated to handle JavaScript comments."
+            }
+        }
+    },
+    "buggy_methods": {
+        "youtube_dl.utils.js_to_json(code)": {
+            "is_found": true,
+            "sbfl_rank": 2065,
+            "matching_answer": [
+                "youtube_dl.utils.js_to_json(str)"
+            ]
+        },
+        "youtube_dl.utils.fix_kv(m)": {
+            "is_found": false,
+            "sbfl_rank": 2066,
+            "matching_answer": []
+        }
+    }
+}
