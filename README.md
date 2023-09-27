@@ -21,11 +21,15 @@ Replace `{YOUR_API_KEY}` with your OpenAI API key and `{YOUR_ORG_KEY}` with your
 
 # Guide to Reproduction
 
-## 1. Generate FL Results Files
+## 0. Raw Data Files
+- `./results/{label}/{model}/XFL-{bugname}.json`: the `AutoFL` results
+- `./results/{label}/{model}/downstream_*`: the interaction data with LLM for the downstream tasks (APR and Test Generation)
+  - The summary of the evaluation results can be found at `notebooks/resources/[APR|TestGen]_results.csv`.
+- `./combined_fl_results`: minimized version of AutoFL + baseline results
 
-The minimized FL results are currently located within the directory `combined_fl_results`.
+## 1. Generate Detailed AutoFL Results Files
 
-To obtain comprehensive FL results files, please execute the following command:
+To obtain comprehensive AutoFL results files, please execute the following command:
 ```shell
 sh compute_scores.sh
 ```
@@ -34,7 +38,8 @@ Running this command will generate complete score data files (`*_full.json`) wit
 ## 2. Reproduce Results in the Paper
 
 - After generating the comprehensive FL results files, the figures in the paper can be reproduced via the Jupyter notebook files within the directory [`./notebooks`](./notebooks/).
-- If you execute the notebooks, the figures will be saved to [`./notebooks/figures`](./notebooks/figures/).
+  - Any necessary files for the analysis are included in the directory [`./notebooks/resources`](./notebooks/resources/)
+  - If you execute the notebooks, the figures will be saved to [`./notebooks/figures`](./notebooks/figures/).
 
 
 # General Usage
