@@ -1,5 +1,13 @@
 # AutoFL
 
+<div align="center">
+  <img src="./assets/AutoFL_logo_DALLE.png" width="150px"/>
+  <br>
+  <p style="width:500px;">
+  This artifact accompanies the paper "<i><b>A Quantitative and Qualitative Evaluation of LLM-based Explainable Fault Localization</i></b>" submitted to FSE'24.
+  </p>
+</div>
+
 # Environmental Setup
 ## Python Dependencies
 Compatible with Python >= 3.10
