@@ -7,7 +7,7 @@ Compatible with Python >= 3.10
 Install the required dependencies using the following command:
 
 ```shell
-python -m pip install pandas python-dotenv tqdm markdown2 tiktoken openai javalang-ext scipy numpy matplotlib jupyter
+python -m pip install pandas python-dotenv tqdm markdown2 tiktoken openai javalang-ext scipy numpy matplotlib jupyter seaborn nbformat
 ```
 
 ## OpenAI API Setup
