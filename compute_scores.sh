@@ -1,4 +1,4 @@
-mkdir combined_fl_results
+[ ! -d combined_fl_results ] && mkdir combined_fl_results
 
 # Defects4J (AUTOFL-GPT-3.5)
 python compute_score.py \

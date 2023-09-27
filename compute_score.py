@@ -322,7 +322,6 @@ if __name__ == '__main__':
     parser.add_argument('--minimize', '-m', action="store_true")
     parser.add_argument('--aux', '-a', action="store_true")
     args = parser.parse_args()
-
     assert args.language in ["java", "python"]
 
     json_files, autofl_scores = compute_autofl_scores(args.result_dirs, args.project, args.verbose)
@@ -353,7 +352,7 @@ if __name__ == '__main__':
         "confidence": confidence,
     }
     if not args.minimize:
-        data["predictions"]: method_scores
+        data["predictions"] = method_scores
 
     with open(args.output, "w") as f:
         json.dump(data, f, indent=4)
