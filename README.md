@@ -7,7 +7,7 @@ Compatible with Python >= 3.10
 Install the required dependencies using the following command:
 
 ```shell
-python -m pip install pandas python-dotenv tqdm markdown2 tiktoken openai javalang-ext scipy numpy matplotlib
+python -m pip install pandas python-dotenv tqdm markdown2 tiktoken openai javalang-ext scipy numpy matplotlib jupyter
 ```
 
 ## OpenAI API Setup
@@ -19,7 +19,7 @@ OPENAI_ORG_KEY{YOUR_ORG_KEY} # Optional
 ```
 Replace `{YOUR_API_KEY}` with your OpenAI API key and `{YOUR_ORG_KEY}` with your organization's API key.
 
-# Generate Data for Reproduction
+# Guide to Reproduction
 
 ## 1. Generate FL Results Files
 
@@ -29,9 +29,13 @@ To obtain comprehensive FL results files, please execute the following command:
 ```shell
 sh compute_scores.sh
 ```
-Running this command will generate complete score data within the `combined_fl_results` directory, utilizing the raw data sourced from the `results` directory.
+Running this command will generate complete score data files (`*_full.json`) within the `combined_fl_results` directory, utilizing the raw data sourced from the `results` directory.
 
-## 2. ... #FIXME
+## 2. Reproduce Results in the Paper
+
+- After generating the comprehensive FL results files, the figures in the paper can be reproduced via the Jupyter notebook files within the directory [`./notebooks`](./notebooks/).
+- If you execute the notebooks, the figures will be saved to [`./notebooks/figures`](./notebooks/figures/).
+
 
 # General Usage
 
