@@ -21,7 +21,7 @@ Before using AutoFL, set up your OpenAI API credentials by creating a `.env` fil
 
 ```shell
 OPENAI_API_KEY={YOUR_API_KEY}
-OPENAI_ORG_KEY{YOUR_ORG_KEY} # Optional
+OPENAI_ORG_KEY={YOUR_ORG_KEY} # Optional
 ```
 Replace `{YOUR_API_KEY}` with your OpenAI API key and `{YOUR_ORG_KEY}` with your organization's API key.
 
@@ -31,7 +31,7 @@ Replace `{YOUR_API_KEY}` with your OpenAI API key and `{YOUR_ORG_KEY}` with your
 - `./results/{label}/{model}/XFL-{bugname}.json`: the `AutoFL` results
 - `./results/{label}/{model}/downstream_*`: the interaction data with LLM for the downstream tasks (APR and Test Generation)
   - The summary of the evaluation results can be found at `notebooks/resources/[APR|TestGen]_results.csv`.
-- `./combined_fl_results`: minimized version of AutoFL + baseline results
+- `./combined_fl_results`: minimized version of AutoFL + ablation results
 
 ## 1. Generate Detailed AutoFL Results Files
 
