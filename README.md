@@ -8,12 +8,13 @@
 
 # Environmental Setup
 ## Python Dependencies
-Compatible with Python >= 3.10
+- Compatible with Python >= 3.10
+- Compatible with `openai>=0.27.8,<=0.28.1` (not compatible with `openai>=1.0.0`)
 
 Install the required dependencies using the following command:
 
 ```shell
-python -m pip install pandas python-dotenv tqdm markdown2 tiktoken openai javalang-ext scipy numpy matplotlib jupyter seaborn nbformat
+python -m pip install pandas python-dotenv tqdm markdown2 tiktoken "openai>=0.27.8,<=0.28.1" javalang-ext scipy numpy matplotlib jupyter seaborn nbformat
 ```
 
 ## OpenAI API Setup
