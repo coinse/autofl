@@ -4,7 +4,7 @@
 <img src="./assets/AutoFL_logo_DALLE.png" width="300px"/>
 </div>
 
-> This artifact accompanies the paper **_A Quantitative and Qualitative Evaluation of LLM-based Explainable Fault Localization_** submitted to FSE'24.
+> This artifact accompanies the paper **_A Quantitative and Qualitative Evaluation of LLM-based Explainable Fault Localization_** accepted to FSE'24.
 
 # Environmental Setup
 ## Python Dependencies
