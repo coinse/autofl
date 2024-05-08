@@ -7,7 +7,8 @@ from collections import defaultdict
 
 from lib import sequence_utils, name_utils
 
-BUG_INFO_DIR = './data/bugsinpy/'
+BUG_INFO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "data/bugsinpy/")
 
 class BIPRepositoryInterface():
     FUNCTION_DESCRIPTIONS = [
