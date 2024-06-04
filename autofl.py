@@ -10,10 +10,10 @@ from lib.repo_interface import get_repo_interface
 RESULT_DIR = './results/'
 
 class AutoDebugger(llm_utils.OpenAIEngine):
-    def __init__(self, bug_name, model_type, system_file, test_offset=None,
+    def __init__(self, endpoint, bug_name, model_type, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
             summarize_messages=False, debug=False, **ri_kwargs):
-        super().__init__()
+        super().__init__(endpoint)
         self._bug_name = bug_name
         self._model = model_type
         self._ri = get_repo_interface(bug_name, **ri_kwargs)
@@ -109,7 +109,7 @@ class AutoDebugger(llm_utils.OpenAIEngine):
             }
         })
         self._append_to_messages({
-            "role": "function",
+            "role": "system", # codellama and gemma do not accept function as a role
             "name": self._ri.initial_coverage_getter,
             "content": json.dumps(self._ri.fname2func[self._ri.initial_coverage_getter]())
         })
@@ -230,6 +230,7 @@ class AutoDebugger(llm_utils.OpenAIEngine):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', default='gpt-3.5-turbo-0613')
+    parser.add_argument('-e', '--endpoint', default='http://localhost:11434/v1')
     parser.add_argument('-b', '--bug_name', default='Chart_1')
     parser.add_argument('-o', '--out', default='test.json')
     parser.add_argument('-p', '--prompt', default='prompts/system_msg_expbug.txt')
@@ -243,7 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action="store_true")
     args = parser.parse_args()
 
-    ad = AutoDebugger(args.bug_name, args.model, args.prompt,
+    ad = AutoDebugger(args.endpoint, args.bug_name, args.model, args.prompt,
         test_offset=args.test_offset,
         max_num_tests=args.max_num_tests,
         allow_multi_predictions=args.allow_multi_predictions,

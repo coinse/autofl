@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 from abc import ABC
 
 class OpenAIEngine(ABC):
-    def __init__(self):
+    def __init__(self, endpoint):
         load_dotenv()
-        openai.api_key = os.environ["OPENAI_API_KEY"]
-        openai.organization = os.environ["OPENAI_ORG_KEY"]
+        openai.api_key = 'ollama'
+        openai.api_base = endpoint
 
     # Load environment variables from .env file
     def get_LLM_response(self, **kwargs):
