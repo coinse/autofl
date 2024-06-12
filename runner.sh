@@ -10,7 +10,7 @@ PROJECT=$5
 
 DATA_DIR=./data/${DATASET}/
 ENDPOINT="http://localhost:11434/v1"
-PROMPT_FILE="prompts/system_msg_expbug.txt"
+PROMPT_FILE="prompts/system_msg_expbug_with_funcs.txt"
 BUDGET="10"
 NUM_TESTS="1"
 

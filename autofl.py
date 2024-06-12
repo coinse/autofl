@@ -109,7 +109,7 @@ class AutoDebugger(llm_utils.OpenAIEngine):
             }
         })
         self._append_to_messages({
-            "role": "system", # codellama and gemma do not accept function as a role
+            "role": "function",
             "name": self._ri.initial_coverage_getter,
             "content": json.dumps(self._ri.fname2func[self._ri.initial_coverage_getter]())
         })
@@ -130,8 +130,6 @@ class AutoDebugger(llm_utils.OpenAIEngine):
         response = self.get_LLM_response(
             model=self._model,
             messages=prompt_messages,
-            functions=self._ri.function_descriptions,
-            function_call=function_call_mode,  # auto is default, but we'll be explicit #FIXME
         )
 
         if self._summarize_messages:
