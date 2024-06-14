@@ -9,7 +9,7 @@ from lib.repo_interface import get_repo_interface
 
 RESULT_DIR = './results/'
 
-class AutoDebugger(llm_utils.OpenAIEngine):
+class AutoDebugger(llm_utils.OllamaEngine):
     def __init__(self, endpoint, bug_name, model_type, system_file, test_offset=None,
             max_num_tests=None, allow_multi_predictions=False,
             summarize_messages=False, debug=False, **ri_kwargs):

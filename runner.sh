@@ -9,7 +9,7 @@ MODEL=$4
 PROJECT=$5
 
 DATA_DIR=./data/${DATASET}/
-ENDPOINT="http://localhost:11434/v1"
+ENDPOINT="http://localhost:11434/api/generate"
 PROMPT_FILE="prompts/system_msg_expbug_with_funcs.txt"
 BUDGET="10"
 NUM_TESTS="1"

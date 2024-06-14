@@ -1,15 +1,11 @@
-import os
 import time
-import openai
-from dotenv import load_dotenv
+import requests
 from abc import ABC
 import json
 
-class OpenAIEngine(ABC):
+class OllamaEngine(ABC):
     def __init__(self, endpoint):
-        load_dotenv()
-        openai.api_key = 'ollama'
-        openai.api_base = endpoint
+        self._base_url = endpoint
 
     def _funcCall2str(self, function_call):
         return function_call['name']+'('+', '.join(f'{k}={v}' for k, v in json.loads(function_call['arguments']).items())+')'
@@ -17,11 +13,11 @@ class OpenAIEngine(ABC):
     def _messages2prompt(self, messages):
         full_str = ''
         for m in messages:
-            role_str = m['role'].title()+': '
+            role_str = m['role'].title()
             content_str = m['content'] if m['content'] is not None else ''
-            func_call_str = 'Function call: ' + self._funcCall2str(m['function_call']) if 'function_call' in m else ''
-            full_str += role_str + content_str + func_call_str + '\n'
-        full_str += 'Assistant:'
+            func_call_str = f'Function call: {self._funcCall2str(m["function_call"])}' if 'function_call' in m else ''
+            full_str += f'[{role_str}] {content_str}{func_call_str}\n'
+        full_str += '[Assistant] '
         return full_str
 
     def parse_response(self, response):
@@ -61,14 +57,18 @@ class OpenAIEngine(ABC):
     def get_LLM_response(self, **kwargs):
         for _ in range(5):
             try:
-                kwargs['messages'] = [{'role': 'system', 'content': self._messages2prompt(kwargs['messages'])}]
-                response = openai.ChatCompletion.create(**kwargs)
-                return self.parse_response(response['choices'][0]['message']['content'])  # If the above succeeds, we return here
+                payload = {
+                    'model': kwargs['model'],
+                    'prompt': self._messages2prompt(kwargs['messages']),
+                    'stream': False
+                }
+                json_payload = json.dumps(payload)
+                headers = {'Content-Type': 'application/json'}
+                response = requests.post(self._base_url, data=json_payload, headers=headers)
+                return self.parse_response(json.loads(response.text)['response'])
             except Exception as e:
                 save_err = e
-                if isinstance(e, openai.error.ServiceUnavailableError):
-                    time.sleep(1)
-                elif "The server had an error processing your request." in str(e):
+                if "The server had an error processing your request." in str(e):
                     time.sleep(1)
                 else:
                     break
