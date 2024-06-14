@@ -33,7 +33,7 @@ def parse_response(response):
     return [
         expr.removeprefix('`').removesuffix('`')
         for expr in response.strip().splitlines()
-    ]
+    ] if response else []
 
 def print_divider():
     print("-"*50)
