@@ -315,7 +315,7 @@ def calculate_confidence(method_scores):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="")
     parser.add_argument('result_dirs', nargs="+", type=str)
-    parser.add_argument('--output', '-o', type=str, default="scores.json")
+    parser.add_argument('--output', '-o', type=str, default="method_ranks.txt")
     parser.add_argument('--project', '-p', type=str, default=None)
     parser.add_argument('--language', '-l', type=str, default="java")
     parser.add_argument('--verbose', '-v', action="store_true")
@@ -334,25 +334,8 @@ if __name__ == '__main__':
                                              default_aux_score=0, verbose=args.verbose)
     
     method_scores = assign_rank(method_scores)
-
-    buggy_method_ranks = get_buggy_method_ranks(method_scores, key="autofl_rank")
-
-    confidence = calculate_confidence(method_scores)
-
-    # summarize the results
-    summary = {"total": len(method_scores)}
-    for n in range(1, 11):
-        summary[f"acc@{n}"] = calculate_acc(buggy_method_ranks, key="autofl_rank", n=n)
-    print(json.dumps(summary, indent=4))
-
-
-    data = {
-        "summary": summary,
-        "buggy_methods": buggy_method_ranks,
-        "confidence": confidence,
-    }
-    if not args.minimize:
-        data["predictions"] = method_scores
-
-    with open(args.output, "w") as f:
-        json.dump(data, f, indent=4)
+    assert len(method_scores) == 1
+    bug_name = list(method_scores.keys())[0]
+    with open(args.output, 'w') as f:
+        for method_name in sorted(method_scores[bug_name].keys(), key=lambda k: method_scores[bug_name][k]['rank']):
+            print(method_name, file=f)
