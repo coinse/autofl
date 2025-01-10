@@ -8,7 +8,6 @@ class OpenAIEngine(ABC):
     def __init__(self):
         load_dotenv()
         openai.api_key = os.environ["OPENAI_API_KEY"]
-        openai.organization = os.environ["OPENAI_ORG_KEY"]
 
     # Load environment variables from .env file
     def get_LLM_response(self, **kwargs):
